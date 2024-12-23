@@ -19,14 +19,13 @@ export class FrontendDeployStack extends cdk.Stack {
       zoneName: DOMAIN_NAME,
     });
 
-    // Create the HTTPS certificate (⚠️ must be in region us-east-1 ⚠️)
     const httpsCertificate = new Certificate(this, 'HttpsCertificate', {
       domainName: DOMAIN_NAME,
       subjectAlternativeNames: [WWW_DOMAIN_NAME],
       validation: CertificateValidation.fromDns(hostedZone),
     });
 
-    const staticSiteBucket = new cdk.aws_s3.Bucket(this, 'StaticSiteBucket', {
+    const staticSiteBucket = new cdk.aws_s3.Bucket(this, 'StaticSiteS3Bucket', {
       websiteIndexDocument: 'index.html',
       blockPublicAccess: {
         blockPublicAcls: false,
@@ -44,6 +43,7 @@ export class FrontendDeployStack extends cdk.Stack {
         ),
       ],
       destinationBucket: staticSiteBucket,
+      cacheControl: [cdk.aws_s3_deployment.CacheControl.noCache()],
     });
 
     const cloudFrontDistribution = new cdk.aws_cloudfront.Distribution(
@@ -73,7 +73,6 @@ export class FrontendDeployStack extends cdk.Stack {
       recordName: DOMAIN_NAME,
     });
 
-    // Same from www. sub-domain
     new ARecord(this, 'CloudFrontWWWRedirect', {
       zone: hostedZone,
       target: RecordTarget.fromAlias(
@@ -81,6 +80,8 @@ export class FrontendDeployStack extends cdk.Stack {
       ),
       recordName: WWW_DOMAIN_NAME,
     });
+
+    // Outputs
 
     new cdk.CfnOutput(this, 'StaticSite Url', {
       value: staticSiteBucket.bucketWebsiteUrl,
