@@ -1,13 +1,13 @@
 // import * as cdk from 'aws-cdk-lib';
 // import { Template } from 'aws-cdk-lib/assertions';
-// import * as Shouldntve from '../lib/shouldntve-stack';
+// import * as FrontendDeploy from '../lib/frontend-deploy-stack';
 
 // example test. To run these tests, uncomment this file along with the
-// example resource in lib/shouldntve-stack.ts
+// example resource in lib/frontend-deploy-stack.ts
 test('SQS Queue Created', () => {
 //   const app = new cdk.App();
 //     // WHEN
-//   const stack = new Shouldntve.ShouldntveStack(app, 'MyTestStack');
+//   const stack = new FrontendDeploy.FrontendDeployStack(app, 'MyTestStack');
 //     // THEN
 //   const template = Template.fromStack(stack);
 
