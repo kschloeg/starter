@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
 
+const sanitizeInput = (input: string) => {
+  const element = document.createElement('div');
+  element.innerText = input;
+  return element.innerHTML;
+};
+
 function App() {
   const [users, setUsers] = useState<
     { firstName: string; lastName: string; email: string; phone?: string }[]
@@ -29,14 +35,32 @@ function App() {
 
   const onFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const sanitizedFirstName = sanitizeInput(firstName);
+    const sanitizedLastName = sanitizeInput(lastName);
+    const sanitizedEmail = sanitizeInput(email);
+    const sanitizedPhone = sanitizeInput(phone);
+
     await fetch(`${import.meta.env.VITE_API_URL}/users`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ firstName, lastName, email, phone }),
+      body: JSON.stringify({
+        firstName: sanitizedFirstName,
+        lastName: sanitizedLastName,
+        email: sanitizedEmail,
+        phone: sanitizedPhone,
+      }),
     });
-    setUsers([...users, { firstName, lastName, email, phone }]);
+    setUsers([
+      ...users,
+      {
+        firstName: sanitizedFirstName,
+        lastName: sanitizedLastName,
+        email: sanitizedEmail,
+        phone: sanitizedPhone,
+      },
+    ]);
     await syncUsers();
   };
 
