@@ -7,6 +7,7 @@ import {
   CertificateValidation,
 } from 'aws-cdk-lib/aws-certificatemanager';
 import { CloudFrontTarget } from 'aws-cdk-lib/aws-route53-targets';
+import { S3StaticWebsiteOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
 
 export class FrontendDeployStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -51,9 +52,7 @@ export class FrontendDeployStack extends cdk.Stack {
       'CloudFrontDistribution',
       {
         defaultBehavior: {
-          origin: new cdk.aws_cloudfront_origins.S3StaticWebsiteOrigin(
-            staticSiteBucket
-          ),
+          origin: new S3StaticWebsiteOrigin(staticSiteBucket),
           viewerProtocolPolicy:
             cdk.aws_cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           responseHeadersPolicy: {
