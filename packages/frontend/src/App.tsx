@@ -79,7 +79,7 @@ function App() {
       <table>
         <thead>
           <tr>
-            <th>RAMONA Name</th>
+            <th>First Name</th>
             <th>Last Name</th>
             <th>Email Address</th>
             <th>Phone</th>
