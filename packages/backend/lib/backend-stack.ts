@@ -1,22 +1,22 @@
-import * as cdk from "aws-cdk-lib";
-import * as sqs from "aws-cdk-lib/aws-sqs";
-import { Construct } from "constructs";
-import { join } from "path";
+import * as cdk from 'aws-cdk-lib';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
+import { Construct } from 'constructs';
+import { join } from 'path';
 
 export class BackendStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
     //
-    const queue = new sqs.Queue(this, "MyQueue", {
+    const queue = new sqs.Queue(this, 'MyQueue', {
       visibilityTimeout: cdk.Duration.seconds(300),
     });
 
     // Create the API
-    const api = new cdk.aws_apigateway.RestApi(this, "RestApi", {});
+    const api = new cdk.aws_apigateway.RestApi(this, 'RestApi', {});
 
     // Create the /users route, add CORS to it to allow the front to call it
-    const users = api.root.addResource("users");
+    const users = api.root.addResource('users');
     users.addCorsPreflight({
       allowOrigins: cdk.aws_apigateway.Cors.ALL_ORIGINS,
       allowMethods: cdk.aws_apigateway.Cors.ALL_METHODS,
@@ -24,70 +24,165 @@ export class BackendStack extends cdk.Stack {
     });
 
     // Create the DynamoDB table
-    const table = new cdk.aws_dynamodb.Table(this, "UsersTable", {
+    const table = new cdk.aws_dynamodb.Table(this, 'UsersTable', {
       partitionKey: {
-        name: "PK",
+        name: 'PK',
         type: cdk.aws_dynamodb.AttributeType.STRING,
       },
       sortKey: {
-        name: "SK",
+        name: 'SK',
         type: cdk.aws_dynamodb.AttributeType.STRING,
       },
       billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
     });
 
+    // OTP table for authentication
+    const otpTable = new cdk.aws_dynamodb.Table(this, 'AuthOtpsTable', {
+      partitionKey: { name: 'PK', type: cdk.aws_dynamodb.AttributeType.STRING },
+      sortKey: { name: 'SK', type: cdk.aws_dynamodb.AttributeType.STRING },
+      billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
+      timeToLiveAttribute: 'expiresAt',
+    });
+    // TTL enabled via table property
+
+    // Secrets for OTP and JWT
+    const otpSecret = new cdk.aws_secretsmanager.Secret(this, 'OtpSecret', {
+      description: 'OTP secret for HMAC hashing of one-time codes',
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({}),
+        generateStringKey: 'otp',
+        passwordLength: 40,
+      },
+    });
+
+    const jwtSecret = new cdk.aws_secretsmanager.Secret(this, 'JwtSecret', {
+      description: 'JWT signing secret for auth tokens',
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({}),
+        generateStringKey: 'jwt',
+        passwordLength: 64,
+      },
+    });
+
     // Create the listUsers lambda, link it to the API
     const listUsers = new cdk.aws_lambda_nodejs.NodejsFunction(
       this,
-      "ListUsers",
+      'ListUsers',
       {
-        entry: join(__dirname, "functions", "listUsers.ts"),
-        handler: "handler",
+        entry: join(__dirname, 'functions', 'listUsers.ts'),
+        handler: 'handler',
         environment: {
           TABLE_NAME: table.tableName,
         },
         bundling: {
           minify: true,
-          externalModules: ["@aws-sdk/client-dynamodb"],
+          externalModules: ['@aws-sdk/client-dynamodb'],
         },
         runtime: cdk.aws_lambda.Runtime.NODEJS_18_X,
       }
     );
     table.grantReadData(listUsers);
-    users.addMethod("GET", new cdk.aws_apigateway.LambdaIntegration(listUsers));
+    users.addMethod('GET', new cdk.aws_apigateway.LambdaIntegration(listUsers));
 
     // Create the createUser lambda, link it to the API
     const createUser = new cdk.aws_lambda_nodejs.NodejsFunction(
       this,
-      "CreateUser",
+      'CreateUser',
       {
-        entry: join(__dirname, "functions", "createUser.ts"),
-        handler: "handler",
+        entry: join(__dirname, 'functions', 'createUser.ts'),
+        handler: 'handler',
         environment: {
           TABLE_NAME: table.tableName,
         },
         bundling: {
           minify: true,
-          externalModules: ["@aws-sdk/client-dynamodb"],
+          externalModules: ['@aws-sdk/client-dynamodb'],
         },
         runtime: cdk.aws_lambda.Runtime.NODEJS_18_X,
       }
     );
     table.grantWriteData(createUser);
     users.addMethod(
-      "POST",
+      'POST',
       new cdk.aws_apigateway.LambdaIntegration(createUser)
     );
 
-    new cdk.CfnOutput(this, "QueueArn", {
+    // Auth: requestOtp lambda
+    const requestOtp = new cdk.aws_lambda_nodejs.NodejsFunction(
+      this,
+      'RequestOtp',
+      {
+        entry: join(__dirname, 'functions', 'requestOtp.ts'),
+        handler: 'handler',
+        environment: {
+          TABLE_NAME_OTPS: otpTable.tableName,
+          OTP_SECRET_ARN: otpSecret.secretArn,
+        },
+        bundling: {
+          minify: true,
+          externalModules: ['@aws-sdk/client-dynamodb', '@aws-sdk/client-sns'],
+        },
+        runtime: cdk.aws_lambda.Runtime.NODEJS_18_X,
+      }
+    );
+    otpTable.grantWriteData(requestOtp);
+    // allow SNS publish
+    requestOtp.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        actions: ['sns:Publish'],
+        resources: ['*'],
+      })
+    );
+
+    // Auth: verifyOtp lambda
+    const verifyOtp = new cdk.aws_lambda_nodejs.NodejsFunction(
+      this,
+      'VerifyOtp',
+      {
+        entry: join(__dirname, 'functions', 'verifyOtp.ts'),
+        handler: 'handler',
+        environment: {
+          TABLE_NAME_OTPS: otpTable.tableName,
+          USERS_TABLE: table.tableName,
+          OTP_SECRET_ARN: otpSecret.secretArn,
+          JWT_SECRET_ARN: jwtSecret.secretArn,
+          MAX_AUTHS_PER_DAY: process.env.MAX_AUTHS_PER_DAY || '100',
+        },
+        bundling: {
+          minify: true,
+          externalModules: ['@aws-sdk/client-dynamodb', 'jsonwebtoken'],
+        },
+        runtime: cdk.aws_lambda.Runtime.NODEJS_18_X,
+      }
+    );
+    otpTable.grantReadWriteData(verifyOtp);
+    table.grantReadWriteData(verifyOtp);
+    // grant secrets read permission
+    otpSecret.grantRead(requestOtp);
+    otpSecret.grantRead(verifyOtp);
+    jwtSecret.grantRead(verifyOtp);
+
+    const auth = api.root.addResource('auth');
+    const requestOtpRes = auth.addResource('request-otp');
+    requestOtpRes.addMethod(
+      'POST',
+      new cdk.aws_apigateway.LambdaIntegration(requestOtp)
+    );
+    const verifyOtpRes = auth.addResource('verify-otp');
+    verifyOtpRes.addMethod(
+      'POST',
+      new cdk.aws_apigateway.LambdaIntegration(verifyOtp)
+    );
+
+    new cdk.CfnOutput(this, 'QueueArn', {
       value: queue.queueArn,
-      description: "ARN of the SQS Queue",
+      description: 'ARN of the SQS Queue',
       exportName: `${id}-QueueArn`,
     });
 
-    new cdk.CfnOutput(this, "RestApiUrl", {
+    new cdk.CfnOutput(this, 'RestApiUrl', {
       value: api.url,
-      description: "URL of the API Gateway",
+      description: 'URL of the API Gateway',
       exportName: `${id}-RestApiUrl`,
     });
   }
