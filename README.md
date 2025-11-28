@@ -100,6 +100,11 @@ direnv allow .
 
 - If you prefer not to use `direnv`, the `.envrc` is safe to inspect and you can run `nvm use` manually in this project.
 
+Note about `asdf` and PATH
+
+- The project's `.envrc` strips `asdf` shims (`$HOME/.asdf/shims` and the common asdf libexec path) from the `PATH` for the direnv session so the `nvm` binary is used inside this repository. This change is local to the direnv-managed shell session and does not alter your global shell configuration.
+- To revert this behavior, run `direnv allow` with a modified `.envrc` (or remove the `asdf` filtering lines) and then `direnv reload`.
+
 And join the Nx community:
 
 - [Discord](https://go.nx.dev/community)
