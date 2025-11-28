@@ -114,6 +114,7 @@ function App() {
             <th>Last Name</th>
             <th>Email Address</th>
             <th>Phone</th>
+            <th>Keely</th>
           </tr>
         </thead>
         <tbody>

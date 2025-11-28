@@ -2,7 +2,10 @@
   "name": "@starter/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "test": "echo \"No root tests. Run package tests with npm --workspace <package> test\" && exit 0",
+    "build:all": "npm run --workspace packages/backend build && npm run --workspace packages/frontend build"
+  },
   "engines": {
     "node": ">=25"
   },

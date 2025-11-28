@@ -88,6 +88,18 @@ Learn more:
 - If you use `lambda-nodejs` helpers, `esbuild` is pinned to `~0.21` to avoid import issues; to use newer esbuild you can add `--packages=bundle` to `bundling.esbuildArgs`.
 - CDK CLI versions may diverge from library versions; consult the CDK notices linked in the repo for more details.
 
+Direnv / per-project Node activation
+
+- This repository includes a `.envrc` that loads `nvm` and runs `nvm use` (using `.nvmrc`) when you `cd` into the project. This ensures Node 25 is used for this project only and doesn't change your global Node manager order.
+- To enable this behavior on your machine install `direnv` and allow the file:
+
+```bash
+brew install direnv
+direnv allow .
+```
+
+- If you prefer not to use `direnv`, the `.envrc` is safe to inspect and you can run `nvm use` manually in this project.
+
 And join the Nx community:
 
 - [Discord](https://go.nx.dev/community)

@@ -33,7 +33,7 @@ export const handler = async (): Promise<{
         firstName: item.firstName.S,
         lastName: item.lastName.S,
         phone: (item.phone && item.phone.S) ?? 'WHATEVER',
-        kirk: 'KIRK',
+        kirk: 'Keely',
       }))
     ),
     headers: {
