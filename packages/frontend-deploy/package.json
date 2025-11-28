@@ -8,8 +8,8 @@
     "build": "tsc",
     "watch": "tsc -w",
     "test": "jest",
-    "cdk": "cross-env CDK_DISABLE_TELEMETRY=1 cdk",
-    "cdk:acknowledge": "cdk acknowledge 34892 30717 32775"
+    "cdk": "cross-env CDK_DISABLE_TELEMETRY=1 npx cdk",
+    "cdk:acknowledge": "npx cdk acknowledge 34892 30717 32775"
   },
   "engines": {
     "node": ">=25"
