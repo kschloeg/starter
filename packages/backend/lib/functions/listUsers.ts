@@ -1,4 +1,4 @@
-import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient, QueryCommand } from '@aws-sdk/client-dynamodb';
 
 const client = new DynamoDBClient({});
 
@@ -10,7 +10,7 @@ export const handler = async (): Promise<{
   const tableName = process.env.TABLE_NAME;
 
   if (!tableName) {
-    throw new Error("Missing TABLE_NAME");
+    throw new Error('Missing TABLE_NAME');
   }
 
   const { Items } = await client.send(
@@ -18,8 +18,8 @@ export const handler = async (): Promise<{
       TableName: tableName,
       KeyConditions: {
         PK: {
-          ComparisonOperator: "EQ",
-          AttributeValueList: [{ S: "USER" }],
+          ComparisonOperator: 'EQ',
+          AttributeValueList: [{ S: 'USER' }],
         },
       },
     })
@@ -32,12 +32,13 @@ export const handler = async (): Promise<{
         email: item.SK.S,
         firstName: item.firstName.S,
         lastName: item.lastName.S,
-        phone: (item.phone && item.phone.S) ?? "WHATEVER",
+        phone: (item.phone && item.phone.S) ?? 'WHATEVER',
+        kirk: 'Keely',
       }))
     ),
     headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
     },
   };
 };

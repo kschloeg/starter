@@ -8,7 +8,13 @@ const sanitizeInput = (input: string) => {
 
 function App() {
   const [users, setUsers] = useState<
-    { firstName: string; lastName: string; email: string; phone?: string }[]
+    {
+      firstName: string;
+      lastName: string;
+      email: string;
+      phone?: string;
+      kirk?: string;
+    }[]
   >([]);
   const [firstName, setFirstName] = useState<string>('');
   const [lastName, setLastName] = useState<string>('');
@@ -24,6 +30,7 @@ function App() {
       lastName: string;
       email: string;
       phone?: string;
+      kirk: string;
     }[];
 
     setUsers(body);
@@ -107,15 +114,17 @@ function App() {
             <th>Last Name</th>
             <th>Email Address</th>
             <th>Phone</th>
+            <th>Keely</th>
           </tr>
         </thead>
         <tbody>
-          {users.map(({ email, firstName, lastName, phone }) => (
+          {users.map(({ email, firstName, lastName, phone, kirk }) => (
             <tr key={email}>
               <td>{firstName}</td>
               <td>{lastName}</td>
               <td>{email}</td>
               <td>{phone}</td>
+              <td>{kirk}</td>
             </tr>
           ))}
         </tbody>

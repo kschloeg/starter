@@ -13,6 +13,8 @@ permissions:
 jobs:
   main:
     runs-on: ubuntu-latest
+    env:
+      NX_NO_CLOUD: 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,7 +29,7 @@ jobs:
       # Cache node_modules
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 25
           cache: 'npm'
 
       - run: rm -rf node_modules package-lock.json
