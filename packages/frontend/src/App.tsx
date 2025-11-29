@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import LoginPage from './components/LoginPage';
+import MainPage from './components/MainPage';
 
 const sanitizeInput = (input: string) => {
   const element = document.createElement('div');
@@ -200,142 +202,41 @@ function App() {
   return (
     <div>
       {view === 'login' ? (
-        <div>
-          <h1>Login</h1>
-          <div>
-            <h3>By Phone</h3>
-            <input
-              type="text"
-              placeholder="+15551234567"
-              value={authPhone}
-              onChange={(e) => setAuthPhone(e.target.value)}
-            />
-            <button onClick={() => void requestOtp()}>Request OTP</button>
-          </div>
-          <div>
-            <h3>By Email</h3>
-            <input
-              type="email"
-              placeholder="you@example.com"
-              value={authEmail}
-              onChange={(e) => setAuthEmail(e.target.value)}
-            />
-            <button onClick={() => void requestOtp({ email: authEmail })}>
-              Request OTP via Email
-            </button>
-          </div>
-          <div>
-            <input
-              type="text"
-              placeholder="123456"
-              value={otpCode}
-              onChange={(e) => setOtpCode(e.target.value)}
-            />
-            <button onClick={verifyOtp}>Verify OTP</button>
-          </div>
-          <div>{authMessage}</div>
-        </div>
+        <LoginPage
+          authPhone={authPhone}
+          authEmail={authEmail}
+          otpCode={otpCode}
+          authMessage={authMessage}
+          setAuthPhone={setAuthPhone}
+          setAuthEmail={setAuthEmail}
+          setOtpCode={setOtpCode}
+          requestOtp={requestOtp}
+          verifyOtp={verifyOtp}
+        />
       ) : (
-        <div>
-          <h1>Users</h1>
-          <form onSubmit={onFormSubmit}>
-            <input
-              type="text"
-              name="firstName"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              placeholder="First Name"
-            />
-            <input
-              type="text"
-              name="lastName"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              placeholder="Last Name"
-            />
-            <input
-              type="text"
-              name="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email Address"
-            />
-            <input
-              type="text"
-              name="phone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="Phone"
-            />
-            <button type="submit">Submit</button>
-          </form>
-
-          <table>
-            <thead>
-              <tr>
-                <th>First Name</th>
-                <th>Last Name</th>
-                <th>Email Address</th>
-                <th>Phone</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map(({ email, firstName, lastName, phone }) => (
-                <tr key={email}>
-                  <td>
-                    {editingEmail === email ? (
-                      <input
-                        value={editFirstName}
-                        onChange={(e) => setEditFirstName(e.target.value)}
-                      />
-                    ) : (
-                      firstName
-                    )}
-                  </td>
-                  <td>
-                    {editingEmail === email ? (
-                      <input
-                        value={editLastName}
-                        onChange={(e) => setEditLastName(e.target.value)}
-                      />
-                    ) : (
-                      lastName
-                    )}
-                  </td>
-                  <td>{email}</td>
-                  <td>
-                    {editingEmail === email ? (
-                      <input
-                        value={editPhone}
-                        onChange={(e) => setEditPhone(e.target.value)}
-                      />
-                    ) : (
-                      phone
-                    )}
-                  </td>
-                  <td>
-                    {subject === email ? (
-                      editingEmail === email ? (
-                        <>
-                          <button onClick={() => void saveEdit(email)}>
-                            Save
-                          </button>
-                          <button onClick={cancelEdit}>Cancel</button>
-                        </>
-                      ) : (
-                        <button onClick={() => startEdit(email)}>Edit</button>
-                      )
-                    ) : (
-                      <em>read-only</em>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div>{authMessage}</div>
-        </div>
+        <MainPage
+          users={users}
+          firstName={firstName}
+          lastName={lastName}
+          email={email}
+          phone={phone}
+          setFirstName={setFirstName}
+          setLastName={setLastName}
+          setEmail={setEmail}
+          setPhone={setPhone}
+          onFormSubmit={onFormSubmit}
+          editingEmail={editingEmail}
+          editFirstName={editFirstName}
+          editLastName={editLastName}
+          editPhone={editPhone}
+          setEditFirstName={setEditFirstName}
+          setEditLastName={setEditLastName}
+          setEditPhone={setEditPhone}
+          startEdit={startEdit}
+          cancelEdit={cancelEdit}
+          saveEdit={saveEdit}
+          subject={subject}
+        />
       )}
     </div>
   );
