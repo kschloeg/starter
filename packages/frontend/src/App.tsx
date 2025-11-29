@@ -20,6 +20,10 @@ function App() {
   const [lastName, setLastName] = useState<string>('');
   const [email, setEmail] = useState<string>('');
   const [phone, setPhone] = useState<string>('');
+  const [authPhone, setAuthPhone] = useState<string>('');
+  const [otpCode, setOtpCode] = useState<string>('');
+  const [authMessage, setAuthMessage] = useState<string>('');
+  const [token, setToken] = useState<string | null>(null);
 
   const syncUsers = async () => {
     console.log('KIRK fetching from: ', { url: import.meta.env.VITE_API_URL });
@@ -71,6 +75,52 @@ function App() {
     await syncUsers();
   };
 
+  const requestOtp = async () => {
+    setAuthMessage('');
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/auth/request-otp`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: authPhone }),
+        }
+      );
+      if (!res.ok) {
+        const text = await res.text();
+        setAuthMessage(`Request failed: ${res.status} ${text}`);
+        return;
+      }
+      setAuthMessage('OTP requested — check your phone');
+    } catch (err) {
+      setAuthMessage('Network error');
+    }
+  };
+
+  const verifyOtp = async () => {
+    setAuthMessage('');
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/auth/verify-otp`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: authPhone, code: otpCode }),
+        }
+      );
+      if (!res.ok) {
+        const txt = await res.text();
+        setAuthMessage(`Verify failed: ${res.status} ${txt}`);
+        return;
+      }
+      const body = await res.json();
+      setToken(body.token || null);
+      setAuthMessage('Verified — token received');
+    } catch (err) {
+      setAuthMessage('Network error');
+    }
+  };
+
   return (
     <div>
       <div>
@@ -114,7 +164,7 @@ function App() {
             <th>Last Name</th>
             <th>Email Address</th>
             <th>Phone</th>
-            <th>Keely</th>
+            <th>NEW</th>
           </tr>
         </thead>
         <tbody>
@@ -129,6 +179,33 @@ function App() {
           ))}
         </tbody>
       </table>
+
+      <div>
+        <h2>Passwordless Phone Login</h2>
+        <input
+          type="text"
+          placeholder="+15551234567"
+          value={authPhone}
+          onChange={(e) => setAuthPhone(e.target.value)}
+        />
+        <button onClick={requestOtp}>Request OTP</button>
+        <div>
+          <input
+            type="text"
+            placeholder="123456"
+            value={otpCode}
+            onChange={(e) => setOtpCode(e.target.value)}
+          />
+          <button onClick={verifyOtp}>Verify OTP</button>
+        </div>
+        <div>{authMessage}</div>
+        {token && (
+          <div>
+            <h4>Token</h4>
+            <pre>{token}</pre>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

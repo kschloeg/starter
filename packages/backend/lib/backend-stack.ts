@@ -164,14 +164,24 @@ export class BackendStack extends cdk.Stack {
 
     const auth = api.root.addResource('auth');
     const requestOtpRes = auth.addResource('request-otp');
+    requestOtpRes.addCorsPreflight({
+      allowOrigins: cdk.aws_apigateway.Cors.ALL_ORIGINS,
+      allowMethods: cdk.aws_apigateway.Cors.ALL_METHODS,
+      allowHeaders: cdk.aws_apigateway.Cors.DEFAULT_HEADERS,
+    });
     requestOtpRes.addMethod(
       'POST',
-      new cdk.aws_apigateway.LambdaIntegration(requestOtp)
+      new cdk.aws_apigateway.LambdaIntegration(requestOtp, { proxy: true })
     );
     const verifyOtpRes = auth.addResource('verify-otp');
+    verifyOtpRes.addCorsPreflight({
+      allowOrigins: cdk.aws_apigateway.Cors.ALL_ORIGINS,
+      allowMethods: cdk.aws_apigateway.Cors.ALL_METHODS,
+      allowHeaders: cdk.aws_apigateway.Cors.DEFAULT_HEADERS,
+    });
     verifyOtpRes.addMethod(
       'POST',
-      new cdk.aws_apigateway.LambdaIntegration(verifyOtp)
+      new cdk.aws_apigateway.LambdaIntegration(verifyOtp, { proxy: true })
     );
 
     new cdk.CfnOutput(this, 'QueueArn', {

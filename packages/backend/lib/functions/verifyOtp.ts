@@ -131,15 +131,18 @@ export const handler = async (event: { body: string }) => {
         const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
         const counterKey = { PK: { S: 'GLOBAL' }, SK: { S: `COUNT#${today}` } };
 
-        // increment atomically and return new value
+        // increment atomically and return new value, set TTL for counter
+        const ttl = Math.floor(Date.now() / 1000) + 3600; // 1 hour
         const updateParams: any = {
           TableName: tableName,
           Key: counterKey,
-          UpdateExpression: 'SET #c = if_not_exists(#c, :zero) + :inc',
+          UpdateExpression:
+            'SET #c = if_not_exists(#c, :zero) + :inc, expiresAt = :exp',
           ExpressionAttributeNames: { '#c': 'count' },
           ExpressionAttributeValues: {
             ':inc': { N: '1' },
             ':zero': { N: '0' },
+            ':exp': { N: ttl.toString() },
           },
           ReturnValues: 'UPDATED_NEW',
         };
