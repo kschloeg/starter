@@ -1,5 +1,8 @@
-import React from 'react';
 import UsersTable from './UsersTable';
+import Box from '@mui/material/Box';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import Typography from '@mui/material/Typography';
 
 type User = {
   firstName: string;
@@ -56,39 +59,37 @@ export default function MainPage({
   subject,
 }: Props) {
   return (
-    <div>
-      <h1>Users</h1>
-      <form onSubmit={onFormSubmit}>
-        <input
-          type="text"
-          name="firstName"
+    <Box>
+      <Typography variant="h4">Users</Typography>
+      <Box
+        component="form"
+        onSubmit={onFormSubmit}
+        sx={{ display: 'flex', gap: 1, mt: 2 }}
+      >
+        <TextField
+          label="First Name"
           value={firstName}
           onChange={(e) => setFirstName(e.target.value)}
-          placeholder="First Name"
         />
-        <input
-          type="text"
-          name="lastName"
+        <TextField
+          label="Last Name"
           value={lastName}
           onChange={(e) => setLastName(e.target.value)}
-          placeholder="Last Name"
         />
-        <input
-          type="text"
-          name="email"
+        <TextField
+          label="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email Address"
         />
-        <input
-          type="text"
-          name="phone"
+        <TextField
+          label="Phone"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
-          placeholder="Phone"
         />
-        <button type="submit">Submit</button>
-      </form>
+        <Button type="submit" variant="contained">
+          Submit
+        </Button>
+      </Box>
 
       <UsersTable
         users={users}
@@ -104,6 +105,6 @@ export default function MainPage({
         saveEdit={saveEdit}
         subject={subject}
       />
-    </div>
+    </Box>
   );
 }

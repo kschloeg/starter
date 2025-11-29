@@ -20,6 +20,17 @@ type Props = {
   subject: string | null;
 };
 
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import Paper from '@mui/material/Paper';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import Box from '@mui/material/Box';
+
 export default function UsersTable({
   users,
   editingEmail,
@@ -35,67 +46,78 @@ export default function UsersTable({
   subject,
 }: Props) {
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>First Name</th>
-          <th>Last Name</th>
-          <th>Email Address</th>
-          <th>Phone</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {users.map(({ email, firstName, lastName, phone }) => (
-          <tr key={email}>
-            <td>
-              {editingEmail === email ? (
-                <input
-                  value={editFirstName}
-                  onChange={(e) => setEditFirstName(e.target.value)}
-                />
-              ) : (
-                firstName
-              )}
-            </td>
-            <td>
-              {editingEmail === email ? (
-                <input
-                  value={editLastName}
-                  onChange={(e) => setEditLastName(e.target.value)}
-                />
-              ) : (
-                lastName
-              )}
-            </td>
-            <td>{email}</td>
-            <td>
-              {editingEmail === email ? (
-                <input
-                  value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
-                />
-              ) : (
-                phone
-              )}
-            </td>
-            <td>
-              {subject === email ? (
-                editingEmail === email ? (
-                  <>
-                    <button onClick={() => void saveEdit(email)}>Save</button>
-                    <button onClick={cancelEdit}>Cancel</button>
-                  </>
+    <TableContainer component={Paper} sx={{ mt: 2 }}>
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell>First Name</TableCell>
+            <TableCell>Last Name</TableCell>
+            <TableCell>Email Address</TableCell>
+            <TableCell>Phone</TableCell>
+            <TableCell>Actions</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {users.map(({ email, firstName, lastName, phone }) => (
+            <TableRow key={email}>
+              <TableCell>
+                {editingEmail === email ? (
+                  <TextField
+                    value={editFirstName}
+                    onChange={(e) => setEditFirstName(e.target.value)}
+                  />
                 ) : (
-                  <button onClick={() => startEdit(email)}>Edit</button>
-                )
-              ) : (
-                <em>read-only</em>
-              )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+                  firstName
+                )}
+              </TableCell>
+              <TableCell>
+                {editingEmail === email ? (
+                  <TextField
+                    value={editLastName}
+                    onChange={(e) => setEditLastName(e.target.value)}
+                  />
+                ) : (
+                  lastName
+                )}
+              </TableCell>
+              <TableCell>{email}</TableCell>
+              <TableCell>
+                {editingEmail === email ? (
+                  <TextField
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                  />
+                ) : (
+                  phone
+                )}
+              </TableCell>
+              <TableCell>
+                {subject === email ? (
+                  editingEmail === email ? (
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button
+                        variant="contained"
+                        onClick={() => void saveEdit(email)}
+                      >
+                        Save
+                      </Button>
+                      <Button variant="outlined" onClick={cancelEdit}>
+                        Cancel
+                      </Button>
+                    </Box>
+                  ) : (
+                    <Button variant="outlined" onClick={() => startEdit(email)}>
+                      Edit
+                    </Button>
+                  )
+                ) : (
+                  <em>read-only</em>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
   );
 }

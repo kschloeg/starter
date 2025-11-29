@@ -1,6 +1,17 @@
 import { useEffect, useState } from 'react';
 import LoginPage from './components/LoginPage';
 import MainPage from './components/MainPage';
+import Box from '@mui/material/Box';
+import AppBar from '@mui/material/AppBar';
+import Toolbar from '@mui/material/Toolbar';
+import Typography from '@mui/material/Typography';
+import IconButton from '@mui/material/IconButton';
+import MenuIcon from '@mui/icons-material/Menu';
+import Drawer from '@mui/material/Drawer';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemText from '@mui/material/ListItemText';
+import Button from '@mui/material/Button';
 
 const sanitizeInput = (input: string) => {
   const element = document.createElement('div');
@@ -160,6 +171,7 @@ function App() {
   };
 
   const subject = getSubFromToken(token);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const startEdit = (email: string) => {
     const row = users.find((u) => u.email === email);
@@ -200,45 +212,91 @@ function App() {
   };
 
   return (
-    <div>
-      {view === 'login' ? (
-        <LoginPage
-          authPhone={authPhone}
-          authEmail={authEmail}
-          otpCode={otpCode}
-          authMessage={authMessage}
-          setAuthPhone={setAuthPhone}
-          setAuthEmail={setAuthEmail}
-          setOtpCode={setOtpCode}
-          requestOtp={requestOtp}
-          verifyOtp={verifyOtp}
-        />
-      ) : (
-        <MainPage
-          users={users}
-          firstName={firstName}
-          lastName={lastName}
-          email={email}
-          phone={phone}
-          setFirstName={setFirstName}
-          setLastName={setLastName}
-          setEmail={setEmail}
-          setPhone={setPhone}
-          onFormSubmit={onFormSubmit}
-          editingEmail={editingEmail}
-          editFirstName={editFirstName}
-          editLastName={editLastName}
-          editPhone={editPhone}
-          setEditFirstName={setEditFirstName}
-          setEditLastName={setEditLastName}
-          setEditPhone={setEditPhone}
-          startEdit={startEdit}
-          cancelEdit={cancelEdit}
-          saveEdit={saveEdit}
-          subject={subject}
-        />
-      )}
-    </div>
+    <Box sx={{ display: 'flex', height: '100vh' }}>
+      <AppBar position="fixed">
+        <Toolbar>
+          <IconButton
+            color="inherit"
+            edge="start"
+            onClick={() => setDrawerOpen(true)}
+            sx={{ mr: 2 }}
+          >
+            <MenuIcon />
+          </IconButton>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            Starter App
+          </Typography>
+          {subject ? (
+            <Typography variant="body1">{subject}</Typography>
+          ) : (
+            <Button color="inherit" onClick={() => setView('login')}>
+              Sign In
+            </Button>
+          )}
+        </Toolbar>
+      </AppBar>
+
+      <Drawer
+        anchor="left"
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+      >
+        <Box
+          sx={{ width: 240 }}
+          role="presentation"
+          onClick={() => setDrawerOpen(false)}
+        >
+          <List>
+            <ListItem button onClick={() => setView('users')}>
+              <ListItemText primary="Users" />
+            </ListItem>
+            <ListItem button onClick={() => setView('login')}>
+              <ListItemText primary="Login" />
+            </ListItem>
+          </List>
+        </Box>
+      </Drawer>
+
+      <Box component="main" sx={{ flexGrow: 1, p: 3, mt: 8, width: '100%' }}>
+        {view === 'login' ? (
+          <LoginPage
+            authPhone={authPhone}
+            authEmail={authEmail}
+            otpCode={otpCode}
+            authMessage={authMessage}
+            setAuthPhone={setAuthPhone}
+            setAuthEmail={setAuthEmail}
+            setOtpCode={setOtpCode}
+            requestOtp={requestOtp}
+            verifyOtp={verifyOtp}
+          />
+        ) : (
+          <MainPage
+            users={users}
+            firstName={firstName}
+            lastName={lastName}
+            email={email}
+            phone={phone}
+            setFirstName={setFirstName}
+            setLastName={setLastName}
+            setEmail={setEmail}
+            setPhone={setPhone}
+            onFormSubmit={onFormSubmit}
+            editingEmail={editingEmail}
+            editFirstName={editFirstName}
+            editLastName={editLastName}
+            editPhone={editPhone}
+            setEditFirstName={setEditFirstName}
+            setEditLastName={setEditLastName}
+            setEditPhone={setEditPhone}
+            startEdit={startEdit}
+            cancelEdit={cancelEdit}
+            saveEdit={saveEdit}
+            subject={subject}
+          />
+        )}
+      </Box>
+    </Box>
   );
 }
 
