@@ -21,6 +21,7 @@ function App() {
   const [email, setEmail] = useState<string>('');
   const [phone, setPhone] = useState<string>('');
   const [authPhone, setAuthPhone] = useState<string>('');
+  const [authEmail, setAuthEmail] = useState<string>('');
   const [otpCode, setOtpCode] = useState<string>('');
   const [authMessage, setAuthMessage] = useState<string>('');
   const [token, setToken] = useState<string | null>(null);
@@ -75,15 +76,17 @@ function App() {
     await syncUsers();
   };
 
-  const requestOtp = async () => {
+  const requestOtp = async (opts?: { email?: string }) => {
     setAuthMessage('');
     try {
+      const body =
+        opts && opts.email ? { email: opts.email } : { phone: authPhone };
       const res = await fetch(
         `${import.meta.env.VITE_API_URL}/auth/request-otp`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: authPhone }),
+          body: JSON.stringify(body),
         }
       );
       if (!res.ok) {
@@ -91,7 +94,11 @@ function App() {
         setAuthMessage(`Request failed: ${res.status} ${text}`);
         return;
       }
-      setAuthMessage('OTP requested — check your phone');
+      setAuthMessage(
+        opts && opts.email
+          ? 'OTP requested — check your email'
+          : 'OTP requested — check your phone'
+      );
     } catch (err) {
       setAuthMessage('Network error');
     }
@@ -181,14 +188,29 @@ function App() {
       </table>
 
       <div>
-        <h2>Passwordless Phone Login</h2>
-        <input
-          type="text"
-          placeholder="+15551234567"
-          value={authPhone}
-          onChange={(e) => setAuthPhone(e.target.value)}
-        />
-        <button onClick={requestOtp}>Request OTP</button>
+        <h2>Passwordless Login</h2>
+        <div>
+          <h3>By Phone</h3>
+          <input
+            type="text"
+            placeholder="+15551234567"
+            value={authPhone}
+            onChange={(e) => setAuthPhone(e.target.value)}
+          />
+          <button onClick={() => void requestOtp()}>Request OTP</button>
+        </div>
+        <div>
+          <h3>By Email</h3>
+          <input
+            type="email"
+            placeholder="you@example.com"
+            value={authEmail}
+            onChange={(e) => setAuthEmail(e.target.value)}
+          />
+          <button onClick={() => void requestOtp({ email: authEmail })}>
+            Request OTP via Email
+          </button>
+        </div>
         <div>
           <input
             type="text"

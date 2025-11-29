@@ -1,4 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
+import * as dotenv from 'dotenv';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
 import { join } from 'path';
@@ -6,6 +7,9 @@ import { join } from 'path';
 export class BackendStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+    // Load local .env for CDK when present
+    dotenv.config({ path: `${__dirname}/../.env` });
 
     //
     const queue = new sqs.Queue(this, 'MyQueue', {
@@ -117,6 +121,7 @@ export class BackendStack extends cdk.Stack {
         environment: {
           TABLE_NAME_OTPS: otpTable.tableName,
           OTP_SECRET_ARN: otpSecret.secretArn,
+          SES_FROM_ADDRESS: process.env.SES_FROM_ADDRESS || '',
         },
         bundling: {
           minify: true,
@@ -134,6 +139,13 @@ export class BackendStack extends cdk.Stack {
         resources: ['*'],
       })
     );
+    // allow SES send
+    requestOtp.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        actions: ['ses:SendEmail', 'ses:SendRawEmail'],
+        resources: ['*'],
+      })
+    );
 
     // Auth: verifyOtp lambda
     const verifyOtp = new cdk.aws_lambda_nodejs.NodejsFunction(
@@ -148,6 +160,7 @@ export class BackendStack extends cdk.Stack {
           OTP_SECRET_ARN: otpSecret.secretArn,
           JWT_SECRET_ARN: jwtSecret.secretArn,
           MAX_AUTHS_PER_DAY: process.env.MAX_AUTHS_PER_DAY || '100',
+          SES_FROM_ADDRESS: process.env.SES_FROM_ADDRESS || '',
         },
         bundling: {
           minify: true,

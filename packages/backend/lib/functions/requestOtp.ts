@@ -1,4 +1,5 @@
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
+import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import {
   DynamoDBClient,
   PutItemCommand,
@@ -12,6 +13,7 @@ import * as crypto from 'crypto';
 
 const sns = new SNSClient({});
 const ddb = new DynamoDBClient({});
+const ses = new SESClient({});
 
 const OTP_TTL_SECONDS = 5 * 60; // 5 minutes
 const OTP_LENGTH = 6;
@@ -21,6 +23,7 @@ const otpSecretArn = process.env.OTP_SECRET_ARN;
 const secretsClient = new SecretsManagerClient({});
 let cachedOtpSecret: string | undefined = process.env.OTP_SECRET;
 const snsSenderId = process.env.SNS_SENDER_ID || 'Auth';
+const sesFromAddress = process.env.SES_FROM_ADDRESS || undefined;
 
 function generateOtp() {
   let otp = '';
@@ -43,25 +46,50 @@ function normalizePhone(phone: string) {
 export const handler = async (event: { body: string }) => {
   if (!tableName) throw new Error('Missing TABLE_NAME_OTPS');
 
-  let body: { phone?: string } = {};
+  let body: { phone?: string; email?: string } = {};
   try {
     body = JSON.parse(event.body);
   } catch (err) {
-    return { statusCode: 400, body: 'Invalid JSON' };
+    return {
+      statusCode: 400,
+      body: 'Invalid JSON',
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'text/plain',
+      },
+    };
   }
 
-  if (!body.phone) {
-    return { statusCode: 400, body: 'Missing phone' };
+  if (!body.phone && !body.email) {
+    return {
+      statusCode: 400,
+      body: 'Missing phone or email',
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'text/plain',
+      },
+    };
   }
 
-  const phone = normalizePhone(body.phone);
+  // determine identity (PHONE or EMAIL) and normalized identifier
+  let idType: 'PHONE' | 'EMAIL';
+  let identifier: string;
+  let phone: string | undefined;
+  if (body.email) {
+    idType = 'EMAIL';
+    identifier = (body.email as string).trim().toLowerCase();
+  } else {
+    idType = 'PHONE';
+    phone = normalizePhone(body.phone as string);
+    identifier = phone;
+  }
 
   // rate limit: check if an OTP exists and is recent
   try {
     const get = await ddb.send(
       new GetItemCommand({
         TableName: tableName,
-        Key: { PK: { S: `PHONE#${phone}` }, SK: { S: 'OTP' } },
+        Key: { PK: { S: `${idType}#${identifier}` }, SK: { S: 'OTP' } },
       })
     );
 
@@ -69,7 +97,14 @@ export const handler = async (event: { body: string }) => {
       const createdAt = parseInt(get.Item.createdAt.N || '0', 10);
       const now = Math.floor(Date.now() / 1000);
       if (now - createdAt < 60) {
-        return { statusCode: 429, body: 'Too many requests' };
+        return {
+          statusCode: 429,
+          body: 'Too many requests',
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Content-Type': 'text/plain',
+          },
+        };
       }
     }
   } catch (err) {
@@ -105,7 +140,7 @@ export const handler = async (event: { body: string }) => {
       new PutItemCommand({
         TableName: tableName,
         Item: {
-          PK: { S: `PHONE#${phone}` },
+          PK: { S: `${idType}#${identifier}` },
           SK: { S: 'OTP' },
           otpHash: { S: otpHash },
           attempts: { N: '0' },
@@ -115,31 +150,96 @@ export const handler = async (event: { body: string }) => {
       })
     );
 
-    // send SMS
-    const msg = `Your login code is: ${otp}`;
-    try {
-      const publishRes = await sns.send(
-        new PublishCommand({
-          PhoneNumber: phone,
-          Message: msg,
-          MessageAttributes: {
-            'AWS.SNS.SMS.SenderID': {
-              DataType: 'String',
-              StringValue: snsSenderId,
-            },
+    // send SMS or Email depending on input
+    if (body.email) {
+      const email = (body.email as string).trim();
+      const subject = 'Your login code';
+      const htmlBody = `<p>Your login code is: <strong>${otp}</strong></p>`;
+      const textBody = `Your login code is: ${otp}`;
+      if (!sesFromAddress) {
+        console.error('SES_FROM_ADDRESS not configured');
+        return {
+          statusCode: 500,
+          body: 'Email provider not configured',
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Content-Type': 'text/plain',
           },
-        })
-      );
-      // mask OTP in logs
-      const masked = otp.replace(/.(?=.{2})/g, '*');
-      console.info('Sent OTP', {
-        phone,
-        otp: masked,
-        messageId: publishRes.MessageId,
-      });
-    } catch (err) {
-      console.error('SNS publish failed', err);
-      throw err;
+        };
+      }
+      try {
+        console.info('Attempting SES send', {
+          to: email,
+          from: sesFromAddress,
+          idType,
+          identifier,
+        });
+        const sendRes = await ses.send(
+          new SendEmailCommand({
+            Destination: { ToAddresses: [email] },
+            Message: {
+              Body: {
+                Html: { Data: htmlBody },
+                Text: { Data: textBody },
+              },
+              Subject: { Data: subject },
+            },
+            Source: sesFromAddress,
+          })
+        );
+        const masked = otp.replace(/.(?=.{2})/g, '*');
+        console.info('Sent OTP via SES', {
+          email,
+          otp: masked,
+          messageId: sendRes.MessageId,
+          sendRes,
+        });
+      } catch (err: any) {
+        // log detailed error info to CloudWatch for debugging
+        console.error('SES send failed', {
+          error: err?.name || null,
+          message: err?.message || err,
+          code: err?.Code || err?.code || null,
+          stack: err?.stack || null,
+          to: email,
+          from: sesFromAddress,
+        });
+        return {
+          statusCode: 502,
+          body: 'Email provider send failed',
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Content-Type': 'text/plain',
+          },
+        };
+      }
+    } else {
+      // send SMS
+      const msg = `Your login code is: ${otp}`;
+      try {
+        const publishRes = await sns.send(
+          new PublishCommand({
+            PhoneNumber: phone,
+            Message: msg,
+            MessageAttributes: {
+              'AWS.SNS.SMS.SenderID': {
+                DataType: 'String',
+                StringValue: snsSenderId,
+              },
+            },
+          })
+        );
+        // mask OTP in logs
+        const masked = otp.replace(/.(?=.{2})/g, '*');
+        console.info('Sent OTP', {
+          phone,
+          otp: masked,
+          messageId: publishRes.MessageId,
+        });
+      } catch (err) {
+        console.error('SNS publish failed', err);
+        throw err;
+      }
     }
 
     return {
@@ -152,6 +252,13 @@ export const handler = async (event: { body: string }) => {
     };
   } catch (err) {
     console.error('Error creating OTP', err);
-    return { statusCode: 500, body: 'Internal server error' };
+    return {
+      statusCode: 500,
+      body: 'Internal server error',
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'text/plain',
+      },
+    };
   }
 };
