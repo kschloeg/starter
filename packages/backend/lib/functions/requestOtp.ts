@@ -43,10 +43,26 @@ function normalizePhone(phone: string) {
   return phone.replace(/[^+0-9]/g, '');
 }
 
-export const handler = async (event: { body: string }) => {
+export const handler = async (event: {
+  body: string;
+  headers?: Record<string, string>;
+}) => {
   if (!tableName) throw new Error('Missing TABLE_NAME_OTPS');
 
   let body: { phone?: string; email?: string } = {};
+  const requestOrigin =
+    (event.headers && (event.headers.Origin || event.headers.origin)) ||
+    process.env.FRONTEND_ORIGIN ||
+    '*';
+
+  function corsHeaders(contentType = 'text/plain') {
+    return {
+      'Access-Control-Allow-Origin': requestOrigin,
+      'Access-Control-Allow-Credentials': 'true',
+      'Content-Type': contentType,
+    } as Record<string, string>;
+  }
+
   try {
     body = JSON.parse(event.body);
   } catch (err) {
@@ -161,10 +177,7 @@ export const handler = async (event: { body: string }) => {
         return {
           statusCode: 500,
           body: 'Email provider not configured',
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'text/plain',
-          },
+          headers: corsHeaders('text/plain'),
         };
       }
       try {
@@ -207,10 +220,7 @@ export const handler = async (event: { body: string }) => {
         return {
           statusCode: 502,
           body: 'Email provider send failed',
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'text/plain',
-          },
+          headers: corsHeaders('text/plain'),
         };
       }
     } else {
@@ -245,20 +255,14 @@ export const handler = async (event: { body: string }) => {
     return {
       statusCode: 200,
       body: JSON.stringify({ status: 'ok' }),
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      },
+      headers: corsHeaders('application/json'),
     };
   } catch (err) {
     console.error('Error creating OTP', err);
     return {
       statusCode: 500,
       body: 'Internal server error',
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'text/plain',
-      },
+      headers: corsHeaders('text/plain'),
     };
   }
 };

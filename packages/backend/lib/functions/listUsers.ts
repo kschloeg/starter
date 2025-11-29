@@ -2,7 +2,9 @@ import { DynamoDBClient, QueryCommand } from '@aws-sdk/client-dynamodb';
 
 const client = new DynamoDBClient({});
 
-export const handler = async (): Promise<{
+export const handler = async (event?: {
+  headers?: Record<string, string>;
+}): Promise<{
   statusCode: number;
   body: string;
   headers: Record<string, string>;
@@ -11,6 +13,19 @@ export const handler = async (): Promise<{
 
   if (!tableName) {
     throw new Error('Missing TABLE_NAME');
+  }
+
+  const requestOrigin =
+    (event && (event.headers?.Origin || event.headers?.origin)) ||
+    process.env.FRONTEND_ORIGIN ||
+    '*';
+
+  function corsHeaders(contentType = 'application/json') {
+    return {
+      'Content-Type': contentType,
+      'Access-Control-Allow-Origin': requestOrigin,
+      'Access-Control-Allow-Credentials': 'true',
+    } as Record<string, string>;
   }
 
   const { Items } = await client.send(
@@ -35,9 +50,6 @@ export const handler = async (): Promise<{
   return {
     statusCode: 200,
     body: JSON.stringify(results),
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    },
+    headers: corsHeaders('application/json'),
   };
 };

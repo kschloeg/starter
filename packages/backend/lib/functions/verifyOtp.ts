@@ -29,8 +29,24 @@ function hashOtp(otp: string) {
   return crypto.createHmac('sha256', cachedOtpSecret).update(otp).digest('hex');
 }
 
-export const handler = async (event: { body: string }) => {
+export const handler = async (event: {
+  body: string;
+  headers?: Record<string, string>;
+}) => {
   if (!tableName) throw new Error('Missing TABLE_NAME_OTPS');
+
+  const requestOrigin =
+    (event.headers && (event.headers.Origin || event.headers.origin)) ||
+    process.env.FRONTEND_ORIGIN ||
+    '*';
+
+  function corsHeaders(contentType = 'text/plain') {
+    return {
+      'Access-Control-Allow-Origin': requestOrigin,
+      'Access-Control-Allow-Credentials': 'true',
+      'Content-Type': contentType,
+    } as Record<string, string>;
+  }
 
   let body: { phone?: string; email?: string; code?: string } = {};
   try {
@@ -239,9 +255,7 @@ export const handler = async (event: { body: string }) => {
       statusCode: 200,
       body: JSON.stringify({ token }),
       headers: {
-        'Access-Control-Allow-Origin': origin,
-        'Access-Control-Allow-Credentials': 'true',
-        'Content-Type': 'application/json',
+        ...corsHeaders('application/json'),
         'Set-Cookie': cookie,
       },
     };
@@ -250,10 +264,7 @@ export const handler = async (event: { body: string }) => {
     return {
       statusCode: 500,
       body: 'Internal server error',
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'text/plain',
-      },
+      headers: corsHeaders('text/plain'),
     };
   }
 };
