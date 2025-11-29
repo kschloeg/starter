@@ -126,6 +126,7 @@ export class BackendStack extends cdk.Stack {
       }
     );
     otpTable.grantWriteData(requestOtp);
+    otpTable.grantReadData(requestOtp);
     // allow SNS publish
     requestOtp.addToRolePolicy(
       new cdk.aws_iam.PolicyStatement({

@@ -117,18 +117,30 @@ export const handler = async (event: { body: string }) => {
 
     // send SMS
     const msg = `Your login code is: ${otp}`;
-    await sns.send(
-      new PublishCommand({
-        PhoneNumber: phone,
-        Message: msg,
-        MessageAttributes: {
-          'AWS.SNS.SMS.SenderID': {
-            DataType: 'String',
-            StringValue: snsSenderId,
+    try {
+      const publishRes = await sns.send(
+        new PublishCommand({
+          PhoneNumber: phone,
+          Message: msg,
+          MessageAttributes: {
+            'AWS.SNS.SMS.SenderID': {
+              DataType: 'String',
+              StringValue: snsSenderId,
+            },
           },
-        },
-      })
-    );
+        })
+      );
+      // mask OTP in logs
+      const masked = otp.replace(/.(?=.{2})/g, '*');
+      console.info('Sent OTP', {
+        phone,
+        otp: masked,
+        messageId: publishRes.MessageId,
+      });
+    } catch (err) {
+      console.error('SNS publish failed', err);
+      throw err;
+    }
 
     return {
       statusCode: 200,
