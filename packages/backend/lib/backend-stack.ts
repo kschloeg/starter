@@ -19,6 +19,9 @@ export class BackendStack extends cdk.Stack {
     // Create the API
     const api = new cdk.aws_apigateway.RestApi(this, 'RestApi', {});
 
+    const frontendOrigin =
+      process.env.FRONTEND_ORIGIN || 'https://shouldntve.com';
+
     // Create the /users route, add CORS to it to allow the front to call it
     const users = api.root.addResource('users');
     users.addCorsPreflight({
@@ -88,6 +91,41 @@ export class BackendStack extends cdk.Stack {
     table.grantReadData(listUsers);
     users.addMethod('GET', new cdk.aws_apigateway.LambdaIntegration(listUsers));
 
+    // Protected route (reads auth_token cookie and verifies JWT)
+    const protectedHandler = new cdk.aws_lambda_nodejs.NodejsFunction(
+      this,
+      'ProtectedHandler',
+      {
+        entry: join(__dirname, 'functions', 'protectedHandler.ts'),
+        handler: 'handler',
+        environment: {
+          JWT_SECRET_ARN: jwtSecret.secretArn,
+          FRONTEND_ORIGIN: frontendOrigin,
+        },
+        bundling: {
+          minify: true,
+          externalModules: ['@aws-sdk/client-secrets-manager'],
+        },
+        runtime: cdk.aws_lambda.Runtime.NODEJS_18_X,
+      }
+    );
+    // allow reading the secret
+    jwtSecret.grantRead(protectedHandler);
+
+    const protectedRes = api.root.addResource('protected');
+    protectedRes.addCorsPreflight({
+      allowOrigins: [frontendOrigin],
+      allowMethods: cdk.aws_apigateway.Cors.ALL_METHODS,
+      allowHeaders: cdk.aws_apigateway.Cors.DEFAULT_HEADERS,
+      allowCredentials: true,
+    });
+    protectedRes.addMethod(
+      'GET',
+      new cdk.aws_apigateway.LambdaIntegration(protectedHandler, {
+        proxy: true,
+      })
+    );
+
     // Create the createUser lambda, link it to the API
     const createUser = new cdk.aws_lambda_nodejs.NodejsFunction(
       this,
@@ -111,6 +149,32 @@ export class BackendStack extends cdk.Stack {
       new cdk.aws_apigateway.LambdaIntegration(createUser)
     );
 
+    // Update user (requires auth via cookie)
+    const updateUser = new cdk.aws_lambda_nodejs.NodejsFunction(
+      this,
+      'UpdateUser',
+      {
+        entry: join(__dirname, 'functions', 'updateUser.ts'),
+        handler: 'handler',
+        environment: {
+          TABLE_NAME: table.tableName,
+          JWT_SECRET_ARN: jwtSecret.secretArn,
+          FRONTEND_ORIGIN: frontendOrigin,
+        },
+        bundling: {
+          minify: true,
+          externalModules: ['@aws-sdk/client-dynamodb'],
+        },
+        runtime: cdk.aws_lambda.Runtime.NODEJS_18_X,
+      }
+    );
+    table.grantReadWriteData(updateUser);
+    jwtSecret.grantRead(updateUser);
+    users.addMethod(
+      'PUT',
+      new cdk.aws_apigateway.LambdaIntegration(updateUser, { proxy: true })
+    );
+
     // Auth: requestOtp lambda
     const requestOtp = new cdk.aws_lambda_nodejs.NodejsFunction(
       this,
@@ -122,6 +186,7 @@ export class BackendStack extends cdk.Stack {
           TABLE_NAME_OTPS: otpTable.tableName,
           OTP_SECRET_ARN: otpSecret.secretArn,
           SES_FROM_ADDRESS: process.env.SES_FROM_ADDRESS || '',
+          FRONTEND_ORIGIN: frontendOrigin,
         },
         bundling: {
           minify: true,
@@ -161,10 +226,11 @@ export class BackendStack extends cdk.Stack {
           JWT_SECRET_ARN: jwtSecret.secretArn,
           MAX_AUTHS_PER_DAY: process.env.MAX_AUTHS_PER_DAY || '100',
           SES_FROM_ADDRESS: process.env.SES_FROM_ADDRESS || '',
+          FRONTEND_ORIGIN: frontendOrigin,
         },
         bundling: {
           minify: true,
-          externalModules: ['@aws-sdk/client-dynamodb', 'jsonwebtoken'],
+          externalModules: ['@aws-sdk/client-dynamodb'],
         },
         runtime: cdk.aws_lambda.Runtime.NODEJS_18_X,
       }
@@ -179,9 +245,10 @@ export class BackendStack extends cdk.Stack {
     const auth = api.root.addResource('auth');
     const requestOtpRes = auth.addResource('request-otp');
     requestOtpRes.addCorsPreflight({
-      allowOrigins: cdk.aws_apigateway.Cors.ALL_ORIGINS,
+      allowOrigins: [frontendOrigin],
       allowMethods: cdk.aws_apigateway.Cors.ALL_METHODS,
       allowHeaders: cdk.aws_apigateway.Cors.DEFAULT_HEADERS,
+      allowCredentials: true,
     });
     requestOtpRes.addMethod(
       'POST',
@@ -189,9 +256,10 @@ export class BackendStack extends cdk.Stack {
     );
     const verifyOtpRes = auth.addResource('verify-otp');
     verifyOtpRes.addCorsPreflight({
-      allowOrigins: cdk.aws_apigateway.Cors.ALL_ORIGINS,
+      allowOrigins: [frontendOrigin],
       allowMethods: cdk.aws_apigateway.Cors.ALL_METHODS,
       allowHeaders: cdk.aws_apigateway.Cors.DEFAULT_HEADERS,
+      allowCredentials: true,
     });
     verifyOtpRes.addMethod(
       'POST',

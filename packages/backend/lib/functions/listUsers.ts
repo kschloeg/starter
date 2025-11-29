@@ -25,17 +25,16 @@ export const handler = async (): Promise<{
     })
   );
 
+  const results = (Items || []).map((item) => ({
+    email: item.SK?.S ?? '',
+    firstName: item.firstName?.S ?? '',
+    lastName: item.lastName?.S ?? '',
+    phone: item.phone?.S ?? '',
+  }));
+
   return {
     statusCode: 200,
-    body: JSON.stringify(
-      Items?.map((item) => ({
-        email: item.SK.S,
-        firstName: item.firstName.S,
-        lastName: item.lastName.S,
-        phone: (item.phone && item.phone.S) ?? 'WHATEVER',
-        kirk: 'Keely',
-      }))
-    ),
+    body: JSON.stringify(results),
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',

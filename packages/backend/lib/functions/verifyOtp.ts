@@ -32,24 +32,46 @@ function hashOtp(otp: string) {
 export const handler = async (event: { body: string }) => {
   if (!tableName) throw new Error('Missing TABLE_NAME_OTPS');
 
-  let body: { phone?: string; code?: string } = {};
+  let body: { phone?: string; email?: string; code?: string } = {};
   try {
     body = JSON.parse(event.body);
   } catch (err) {
-    return { statusCode: 400, body: 'Invalid JSON' };
+    return {
+      statusCode: 400,
+      body: 'Invalid JSON',
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'text/plain',
+      },
+    };
   }
 
-  if (!body.phone || !body.code) {
-    return { statusCode: 400, body: 'Missing parameters' };
+  if ((!body.phone && !body.email) || !body.code) {
+    return {
+      statusCode: 400,
+      body: 'Missing parameters',
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'text/plain',
+      },
+    };
   }
 
-  const phone = body.phone.replace(/[^+0-9]/g, '');
+  const isEmail = !!body.email;
+  const identifier = isEmail
+    ? body.email!.trim().toLowerCase()
+    : body.phone!.replace(/[^+0-9]/g, '');
 
   try {
+    const keyPk = isEmail ? `EMAIL#${identifier}` : `PHONE#${identifier}`;
+    console.info('verifyOtp: lookup', {
+      keyPk,
+      codeMasked: `****${body.code?.slice(-2)}`,
+    });
     const res = await ddb.send(
       new GetItemCommand({
         TableName: tableName,
-        Key: { PK: { S: `PHONE#${phone}` }, SK: { S: 'OTP' } },
+        Key: { PK: { S: keyPk }, SK: { S: 'OTP' } },
       })
     );
 
@@ -65,7 +87,7 @@ export const handler = async (event: { body: string }) => {
       await ddb.send(
         new DeleteItemCommand({
           TableName: tableName,
-          Key: { PK: { S: `PHONE#${phone}` }, SK: { S: 'OTP' } },
+          Key: { PK: { S: keyPk }, SK: { S: 'OTP' } },
         })
       );
       return { statusCode: 401, body: 'Invalid or expired code' };
@@ -98,7 +120,7 @@ export const handler = async (event: { body: string }) => {
       const attempts = parseInt(res.Item.attempts.N || '0', 10) + 1;
       const updates: any = {
         TableName: tableName,
-        Key: { PK: { S: `PHONE#${phone}` }, SK: { S: 'OTP' } },
+        Key: { PK: { S: keyPk }, SK: { S: 'OTP' } },
         UpdateExpression: 'SET attempts = :a',
         ExpressionAttributeValues: { ':a': { N: attempts.toString() } },
       };
@@ -108,7 +130,7 @@ export const handler = async (event: { body: string }) => {
         await ddb.send(
           new DeleteItemCommand({
             TableName: tableName,
-            Key: { PK: { S: `PHONE#${phone}` }, SK: { S: 'OTP' } },
+            Key: { PK: { S: keyPk }, SK: { S: 'OTP' } },
           })
         );
       }
@@ -120,7 +142,7 @@ export const handler = async (event: { body: string }) => {
     await ddb.send(
       new DeleteItemCommand({
         TableName: tableName,
-        Key: { PK: { S: `PHONE#${phone}` }, SK: { S: 'OTP' } },
+        Key: { PK: { S: keyPk }, SK: { S: 'OTP' } },
       })
     );
 
@@ -164,15 +186,17 @@ export const handler = async (event: { body: string }) => {
     // optionally create user record if USERS_TABLE provided
     if (usersTable) {
       try {
-        // upsert minimal user record with PK=USER and SK=<phone> to mirror existing user table
+        // upsert minimal user record with PK=USER and SK=<identifier>
+        const userItem: any = {
+          PK: { S: 'USER' },
+          SK: { S: identifier },
+        };
+        if (!isEmail) userItem.phone = { S: identifier };
+        else userItem.email = { S: identifier };
         await ddb.send(
           new PutItemCommand({
             TableName: usersTable,
-            Item: {
-              PK: { S: 'USER' },
-              SK: { S: phone },
-              phone: { S: phone },
-            },
+            Item: userItem,
           })
         );
       } catch (err) {
@@ -202,20 +226,34 @@ export const handler = async (event: { body: string }) => {
       }
     }
 
-    const token = jwt.sign({ sub: phone }, cachedJwtSecret as string, {
+    const subject = isEmail ? identifier : identifier;
+    const token = jwt.sign({ sub: subject }, cachedJwtSecret as string, {
       expiresIn: '1h',
     });
+
+    // create Set-Cookie header for httpOnly cookie
+    const origin = process.env.FRONTEND_ORIGIN || '*';
+    const cookie = `auth_token=${token}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=3600`;
 
     return {
       statusCode: 200,
       body: JSON.stringify({ token }),
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
         'Content-Type': 'application/json',
+        'Set-Cookie': cookie,
       },
     };
   } catch (err) {
-    console.error(err);
-    return { statusCode: 500, body: 'Internal server error' };
+    console.error('verifyOtp: uncaught', err);
+    return {
+      statusCode: 500,
+      body: 'Internal server error',
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'text/plain',
+      },
+    };
   }
 };
