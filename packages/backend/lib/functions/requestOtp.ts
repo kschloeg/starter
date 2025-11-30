@@ -166,6 +166,25 @@ export const handler = async (event: {
       })
     );
 
+    // if email provided and USERS_TABLE is configured, ensure minimal user record exists
+    const usersTable = process.env.USERS_TABLE;
+    if (body.email && usersTable) {
+      try {
+        await ddb.send(
+          new PutItemCommand({
+            TableName: usersTable,
+            Item: {
+              PK: { S: 'USER' },
+              SK: { S: (body.email as string).trim().toLowerCase() },
+              email: { S: (body.email as string).trim().toLowerCase() },
+            },
+          })
+        );
+      } catch (err) {
+        console.error('Failed to upsert user on requestOtp', err);
+      }
+    }
+
     // send SMS or Email depending on input
     if (body.email) {
       const email = (body.email as string).trim();

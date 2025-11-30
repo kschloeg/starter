@@ -110,8 +110,12 @@ export const handler = async (event: {
     }
 
     const otpHash = res.Item.otpHash.S || '';
-    // ensure OTP secret is loaded
+    // ensure OTP secret is loaded — be strict: if we can't load it, fail closed
     if (otpSecretArn && !cachedOtpSecret) {
+      console.info(
+        'OTP secret ARN provided, loading secret from Secrets Manager',
+        { otpSecretArn }
+      );
       try {
         const sec = await secretsClient.send(
           new GetSecretValueCommand({ SecretId: otpSecretArn })
@@ -120,15 +124,36 @@ export const handler = async (event: {
           try {
             const parsed = JSON.parse(sec.SecretString);
             cachedOtpSecret = parsed.otp || sec.SecretString;
+            console.info('Loaded OTP secret from Secrets Manager (masked)');
           } catch (e) {
             cachedOtpSecret = sec.SecretString;
+            console.info(
+              'Loaded OTP secret string from Secrets Manager (masked)'
+            );
           }
         }
       } catch (err) {
-        console.error('Failed to load OTP secret', err);
+        console.error('Failed to load OTP secret from Secrets Manager', err);
+        return {
+          statusCode: 500,
+          body: JSON.stringify({ message: 'Auth unavailable' }),
+          headers: corsHeaders('application/json'),
+        };
       }
     }
 
+    if (!cachedOtpSecret) {
+      console.error(
+        'OTP secret missing after Secrets Manager attempt — failing closed'
+      );
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ message: 'Auth unavailable' }),
+        headers: corsHeaders('application/json'),
+      };
+    }
+
+    console.info('Hashing provided OTP for comparison');
     const providedHash = hashOtp(body.code);
 
     if (providedHash !== otpHash) {
@@ -190,6 +215,7 @@ export const handler = async (event: {
           (updated.Attributes && updated.Attributes.count.N) || '0',
           10
         );
+        console.info('Global auth count for today:', newCount);
         if (newCount > maxPerDay) {
           return { statusCode: 429, body: 'Daily authorization limit reached' };
         }
@@ -201,6 +227,7 @@ export const handler = async (event: {
 
     // optionally create user record if USERS_TABLE provided
     if (usersTable) {
+      console.info('Upserting user record in USERS_TABLE', { identifier });
       try {
         // upsert minimal user record with PK=USER and SK=<identifier>
         const userItem: any = {
@@ -220,11 +247,41 @@ export const handler = async (event: {
       }
     }
 
-    // ensure JWT secret loaded
-    if (
-      jwtSecretArn &&
-      (!cachedJwtSecret || cachedJwtSecret === 'dev_jwt_secret')
-    ) {
+    // record login metadata: lastLoginAt and increment numberOfLogins
+    if (usersTable) {
+      try {
+        const nowTs = Math.floor(Date.now() / 1000).toString();
+        const updateParams: any = {
+          TableName: usersTable,
+          Key: { PK: { S: 'USER' }, SK: { S: identifier } },
+          UpdateExpression:
+            'SET lastLoginAt = :lla, #n = if_not_exists(#n, :zero) + :inc',
+          ExpressionAttributeNames: { '#n': 'numberOfLogins' },
+          ExpressionAttributeValues: {
+            ':lla': { N: nowTs },
+            ':inc': { N: '1' },
+            ':zero': { N: '0' },
+          },
+          ReturnValues: 'UPDATED_NEW',
+        };
+        await ddb.send(new UpdateItemCommand(updateParams));
+      } catch (err) {
+        console.error('Failed to update login meta', err);
+      }
+    }
+
+    if (!jwtSecretArn) {
+      console.info('No JWT_SECRET_ARN, failing auth');
+      return {
+        statusCode: 500,
+        body: { message: 'No JWT_SECRET_ARN' },
+        headers: corsHeaders('application/json'),
+      };
+    }
+
+    // load JWT secret strictly if ARN provided
+    if (jwtSecretArn) {
+      console.info('Loading JWT secret from Secrets Manager', { jwtSecretArn });
       try {
         const sec = await secretsClient.send(
           new GetSecretValueCommand({ SecretId: jwtSecretArn })
@@ -236,10 +293,27 @@ export const handler = async (event: {
           } catch (e) {
             cachedJwtSecret = sec.SecretString;
           }
+          console.info('Loaded JWT secret from Secrets Manager (masked)');
         }
       } catch (err) {
-        console.error('Failed to load JWT secret', err);
+        console.error('Failed to load JWT secret from Secrets Manager', err);
+        return {
+          statusCode: 500,
+          body: JSON.stringify({ message: 'Auth unavailable' }),
+          headers: corsHeaders('application/json'),
+        };
       }
+    }
+
+    if (!cachedJwtSecret || cachedJwtSecret === 'dev_jwt_secret') {
+      console.error(
+        'JWT secret not available or left as dev default — failing closed'
+      );
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ message: 'Auth unavailable' }),
+        headers: corsHeaders('application/json'),
+      };
     }
 
     const subject = isEmail ? identifier : identifier;
