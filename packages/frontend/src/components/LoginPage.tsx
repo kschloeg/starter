@@ -1,36 +1,28 @@
 import React from 'react';
+import useAuth from '../hooks/useAuth';
+import { useSnackbar } from './SnackbarProvider';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 import Layout from './Layout';
+import { useNavigate } from 'react-router-dom';
 
-type Props = {
-  showSnackbar?: (
-    message: string,
-    severity?: 'success' | 'error' | 'info' | 'warning'
-  ) => void;
-};
-
-export default function LoginPage({ showSnackbar }: Props) {
+export default function LoginPage() {
   const [authEmail, setAuthEmail] = React.useState('');
   const [otpCode, setOtpCode] = React.useState('');
   const [requestingOtp, setRequestingOtp] = React.useState(false);
   const [verifyingOtp, setVerifyingOtp] = React.useState(false);
 
+  const { requestOtp: authRequestOtp, verifyOtp: authVerifyOtp } = useAuth();
+  const showSnackbar = useSnackbar();
+  const navigate = useNavigate();
+
   const requestOtp = async () => {
     try {
       setRequestingOtp(true);
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/auth/request-otp`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: authEmail }),
-        }
-      );
+      const res = await authRequestOtp({ email: authEmail });
       setRequestingOtp(false);
       if (!res.ok) {
         const txt = await res.text();
@@ -47,22 +39,17 @@ export default function LoginPage({ showSnackbar }: Props) {
   const verifyOtp = async () => {
     try {
       setVerifyingOtp(true);
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/auth/verify-otp`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: authEmail, code: otpCode }),
-        }
-      );
+      const result = await authVerifyOtp({ email: authEmail, code: otpCode });
       setVerifyingOtp(false);
-      if (!res.ok) {
-        const txt = await res.text();
-        showSnackbar?.(`Verify failed: ${res.status} ${txt}`, 'error');
+      if (!result.ok) {
+        const txt = await result.res.text();
+        showSnackbar?.(`Verify failed: ${result.res.status} ${txt}`, 'error');
         return;
       }
-      showSnackbar?.('Verified — please wait', 'success');
+      showSnackbar?.('Verified — redirecting...', 'success');
+      setAuthEmail('');
+      setOtpCode('');
+      navigate('/');
     } catch (e) {
       setVerifyingOtp(false);
       showSnackbar?.('Network error', 'error');

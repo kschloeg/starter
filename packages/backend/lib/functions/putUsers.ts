@@ -1,14 +1,27 @@
 import { DynamoDBClient, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
-import { getSubjectFromHeaders } from './auth';
+import { getSubjectFromHeaders } from '../utils/authHelpers';
+import {
+  getRequestOrigin,
+  corsHeadersFromOrigin,
+  preflightResponse,
+} from '../utils/cors';
 
 const client = new DynamoDBClient({});
 
 export const handler = async (event: {
   body: string;
   headers?: Record<string, string>;
+  httpMethod?: string;
 }) => {
   const tableName = process.env.TABLE_NAME;
   if (!tableName) throw new Error('Missing TABLE_NAME');
+
+  const origin = getRequestOrigin(event?.headers);
+
+  // Handle preflight
+  if ((event as any).httpMethod === 'OPTIONS') {
+    return preflightResponse(origin);
+  }
 
   let payload: {
     email?: string;
@@ -63,10 +76,7 @@ export const handler = async (event: {
     return {
       statusCode: 200,
       body: 'Updated',
-      headers: {
-        'Access-Control-Allow-Origin': process.env.FRONTEND_ORIGIN || '*',
-        'Access-Control-Allow-Credentials': 'true',
-      },
+      headers: corsHeadersFromOrigin(origin),
     };
   } catch (err) {
     console.error('updateUser error', err);

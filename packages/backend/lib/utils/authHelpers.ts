@@ -9,7 +9,7 @@ const jwtSecretArn = process.env.JWT_SECRET_ARN;
 let cachedJwtSecret: string | undefined =
   process.env.JWT_SECRET || 'dev_jwt_secret';
 
-async function loadJwtSecret() {
+export async function loadJwtSecret() {
   if (
     jwtSecretArn &&
     (!cachedJwtSecret || cachedJwtSecret === 'dev_jwt_secret')
@@ -32,7 +32,7 @@ async function loadJwtSecret() {
   }
 }
 
-function parseCookies(cookieHeader?: string) {
+export function parseCookies(cookieHeader?: string) {
   const out: Record<string, string> = {};
   if (!cookieHeader) return out;
   cookieHeader.split(';').forEach((c) => {
@@ -42,44 +42,19 @@ function parseCookies(cookieHeader?: string) {
   return out;
 }
 
-export const handler = async (event: { headers?: Record<string, string> }) => {
+export async function getSubjectFromHeaders(
+  headers?: Record<string, string> | undefined
+): Promise<string | null> {
   await loadJwtSecret();
-
-  const headers = event.headers || {};
-  const cookies = parseCookies(headers.cookie || headers.Cookie);
+  const cookieHeader = headers?.cookie || headers?.Cookie;
+  const cookies = parseCookies(cookieHeader);
   const token = cookies['auth_token'] || null;
-
-  if (!token) {
-    return {
-      statusCode: 401,
-      body: 'Missing auth_token',
-      headers: {
-        'Access-Control-Allow-Origin': process.env.FRONTEND_ORIGIN || '*',
-        'Access-Control-Allow-Credentials': 'true',
-      },
-    };
-  }
-
+  if (!token) return null;
   try {
     const payload = jwt.verify(token, cachedJwtSecret as string) as any;
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ sub: payload.sub }),
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': process.env.FRONTEND_ORIGIN || '*',
-        'Access-Control-Allow-Credentials': 'true',
-      },
-    };
+    return payload.sub as string;
   } catch (err) {
-    console.error('Invalid token', err);
-    return {
-      statusCode: 401,
-      body: 'Invalid token',
-      headers: {
-        'Access-Control-Allow-Origin': process.env.FRONTEND_ORIGIN || '*',
-        'Access-Control-Allow-Credentials': 'true',
-      },
-    };
+    console.error('auth: invalid token', err);
+    return null;
   }
-};
+}

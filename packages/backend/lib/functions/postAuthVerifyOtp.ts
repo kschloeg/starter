@@ -7,6 +7,7 @@ import {
 import { PutItemCommand } from '@aws-sdk/client-dynamodb';
 import * as crypto from 'crypto';
 import * as jwt from 'jsonwebtoken';
+import { getRequestOrigin, corsHeadersFromOrigin } from '../utils/cors';
 
 import {
   SecretsManagerClient,
@@ -35,18 +36,7 @@ export const handler = async (event: {
 }) => {
   if (!tableName) throw new Error('Missing TABLE_NAME_OTPS');
 
-  const requestOrigin =
-    (event.headers && (event.headers.Origin || event.headers.origin)) ||
-    process.env.FRONTEND_ORIGIN ||
-    '*';
-
-  function corsHeaders(contentType = 'text/plain') {
-    return {
-      'Access-Control-Allow-Origin': requestOrigin,
-      'Access-Control-Allow-Credentials': 'true',
-      'Content-Type': contentType,
-    } as Record<string, string>;
-  }
+  const origin = getRequestOrigin(event.headers);
 
   let body: { phone?: string; email?: string; code?: string } = {};
   try {
@@ -55,10 +45,7 @@ export const handler = async (event: {
     return {
       statusCode: 400,
       body: 'Invalid JSON',
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'text/plain',
-      },
+      headers: corsHeadersFromOrigin(origin, 'text/plain'),
     };
   }
 
@@ -66,10 +53,7 @@ export const handler = async (event: {
     return {
       statusCode: 400,
       body: 'Missing parameters',
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'text/plain',
-      },
+      headers: corsHeadersFromOrigin(origin, 'text/plain'),
     };
   }
 
@@ -137,7 +121,7 @@ export const handler = async (event: {
         return {
           statusCode: 500,
           body: JSON.stringify({ message: 'Auth unavailable' }),
-          headers: corsHeaders('application/json'),
+          headers: corsHeadersFromOrigin(origin, 'application/json'),
         };
       }
     }
@@ -149,7 +133,7 @@ export const handler = async (event: {
       return {
         statusCode: 500,
         body: JSON.stringify({ message: 'Auth unavailable' }),
-        headers: corsHeaders('application/json'),
+        headers: corsHeadersFromOrigin(origin, 'application/json'),
       };
     }
 
@@ -275,7 +259,7 @@ export const handler = async (event: {
       return {
         statusCode: 500,
         body: { message: 'No JWT_SECRET_ARN' },
-        headers: corsHeaders('application/json'),
+        headers: corsHeadersFromOrigin(origin, 'application/json'),
       };
     }
 
@@ -300,7 +284,7 @@ export const handler = async (event: {
         return {
           statusCode: 500,
           body: JSON.stringify({ message: 'Auth unavailable' }),
-          headers: corsHeaders('application/json'),
+          headers: corsHeadersFromOrigin(origin, 'application/json'),
         };
       }
     }
@@ -312,7 +296,7 @@ export const handler = async (event: {
       return {
         statusCode: 500,
         body: JSON.stringify({ message: 'Auth unavailable' }),
-        headers: corsHeaders('application/json'),
+        headers: corsHeadersFromOrigin(origin, 'application/json'),
       };
     }
 
@@ -322,14 +306,14 @@ export const handler = async (event: {
     });
 
     // create Set-Cookie header for httpOnly cookie
-    const origin = process.env.FRONTEND_ORIGIN || '*';
+    const originHeader = getRequestOrigin(event.headers);
     const cookie = `auth_token=${token}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=3600`;
 
     return {
       statusCode: 200,
       body: JSON.stringify({ token }),
       headers: {
-        ...corsHeaders('application/json'),
+        ...corsHeadersFromOrigin(originHeader, 'application/json'),
         'Set-Cookie': cookie,
       },
     };
@@ -338,7 +322,7 @@ export const handler = async (event: {
     return {
       statusCode: 500,
       body: 'Internal server error',
-      headers: corsHeaders('text/plain'),
+      headers: corsHeadersFromOrigin(origin, 'text/plain'),
     };
   }
 };

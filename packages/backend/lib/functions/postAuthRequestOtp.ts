@@ -10,6 +10,7 @@ import {
   GetSecretValueCommand,
 } from '@aws-sdk/client-secrets-manager';
 import * as crypto from 'crypto';
+import { getRequestOrigin, corsHeadersFromOrigin } from '../utils/cors';
 
 const sns = new SNSClient({});
 const ddb = new DynamoDBClient({});
@@ -50,18 +51,7 @@ export const handler = async (event: {
   if (!tableName) throw new Error('Missing TABLE_NAME_OTPS');
 
   let body: { phone?: string; email?: string } = {};
-  const requestOrigin =
-    (event.headers && (event.headers.Origin || event.headers.origin)) ||
-    process.env.FRONTEND_ORIGIN ||
-    '*';
-
-  function corsHeaders(contentType = 'text/plain') {
-    return {
-      'Access-Control-Allow-Origin': requestOrigin,
-      'Access-Control-Allow-Credentials': 'true',
-      'Content-Type': contentType,
-    } as Record<string, string>;
-  }
+  const origin = getRequestOrigin(event.headers);
 
   try {
     body = JSON.parse(event.body);
@@ -69,10 +59,7 @@ export const handler = async (event: {
     return {
       statusCode: 400,
       body: 'Invalid JSON',
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'text/plain',
-      },
+      headers: corsHeadersFromOrigin(origin, 'text/plain'),
     };
   }
 
@@ -80,10 +67,7 @@ export const handler = async (event: {
     return {
       statusCode: 400,
       body: 'Missing phone or email',
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'text/plain',
-      },
+      headers: corsHeadersFromOrigin(origin, 'text/plain'),
     };
   }
 
@@ -116,10 +100,7 @@ export const handler = async (event: {
         return {
           statusCode: 429,
           body: 'Too many requests',
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'text/plain',
-          },
+          headers: corsHeadersFromOrigin(origin, 'text/plain'),
         };
       }
     }
@@ -196,7 +177,7 @@ export const handler = async (event: {
         return {
           statusCode: 500,
           body: 'Email provider not configured',
-          headers: corsHeaders('text/plain'),
+          headers: corsHeadersFromOrigin(origin, 'text/plain'),
         };
       }
       try {
@@ -239,7 +220,7 @@ export const handler = async (event: {
         return {
           statusCode: 502,
           body: 'Email provider send failed',
-          headers: corsHeaders('text/plain'),
+          headers: corsHeadersFromOrigin(origin, 'text/plain'),
         };
       }
     } else {
@@ -274,14 +255,14 @@ export const handler = async (event: {
     return {
       statusCode: 200,
       body: JSON.stringify({ status: 'ok' }),
-      headers: corsHeaders('application/json'),
+      headers: corsHeadersFromOrigin(origin, 'application/json'),
     };
   } catch (err) {
     console.error('Error creating OTP', err);
     return {
       statusCode: 500,
       body: 'Internal server error',
-      headers: corsHeaders('text/plain'),
+      headers: corsHeadersFromOrigin(origin, 'text/plain'),
     };
   }
 };

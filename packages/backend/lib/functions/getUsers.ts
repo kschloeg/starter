@@ -1,4 +1,5 @@
 import { DynamoDBClient, QueryCommand } from '@aws-sdk/client-dynamodb';
+import { getRequestOrigin, corsHeadersFromOrigin } from '../utils/cors';
 
 const client = new DynamoDBClient({});
 
@@ -15,18 +16,7 @@ export const handler = async (event?: {
     throw new Error('Missing TABLE_NAME');
   }
 
-  const requestOrigin =
-    (event && (event.headers?.Origin || event.headers?.origin)) ||
-    process.env.FRONTEND_ORIGIN ||
-    '*';
-
-  function corsHeaders(contentType = 'application/json') {
-    return {
-      'Content-Type': contentType,
-      'Access-Control-Allow-Origin': requestOrigin,
-      'Access-Control-Allow-Credentials': 'true',
-    } as Record<string, string>;
-  }
+  const origin = getRequestOrigin(event?.headers);
 
   const { Items } = await client.send(
     new QueryCommand({
@@ -50,6 +40,6 @@ export const handler = async (event?: {
   return {
     statusCode: 200,
     body: JSON.stringify(results),
-    headers: corsHeaders('application/json'),
+    headers: corsHeadersFromOrigin(origin, 'application/json'),
   };
 };

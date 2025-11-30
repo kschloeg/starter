@@ -1,12 +1,12 @@
 import React, { useEffect } from 'react';
 import UsersTable from './UsersTable';
 import Box from '@mui/material/Box';
-import TextField from '@mui/material/TextField';
-import Button from '@mui/material/Button';
+// removed unused imports
 import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 import Layout from './Layout';
 import useAuth from '../hooks/useAuth';
+import { useSnackbar } from './SnackbarProvider';
 
 type User = {
   firstName: string;
@@ -15,19 +15,9 @@ type User = {
   phone?: string;
 };
 
-type Props = {
-  showSnackbar?: (
-    message: string,
-    severity?: 'success' | 'error' | 'info' | 'warning'
-  ) => void;
-};
-
-export default function MainPage({ showSnackbar }: Props) {
+export default function MainPage() {
   const [users, setUsers] = React.useState<User[]>([]);
-  const [firstName, setFirstName] = React.useState('');
-  const [lastName, setLastName] = React.useState('');
-  const [email, setEmail] = React.useState('');
-  const [submitting, setSubmitting] = React.useState(false);
+  // create user form removed; users are managed from backend
   const [savingEmail, setSavingEmail] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [editingEmail, setEditingEmail] = React.useState<string | null>(null);
@@ -35,6 +25,7 @@ export default function MainPage({ showSnackbar }: Props) {
   const [editLastName, setEditLastName] = React.useState('');
   const [editPhone, setEditPhone] = React.useState('');
   const { subject } = useAuth();
+  const showSnackbar = useSnackbar();
 
   console.log('Rendering MainPage with users:', { users, loading, subject });
   const syncUsers = async () => {
@@ -55,33 +46,7 @@ export default function MainPage({ showSnackbar }: Props) {
     void syncUsers();
   }, []);
 
-  const onFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const sanitizedFirstName = firstName;
-    const sanitizedLastName = lastName;
-    const sanitizedEmail = email;
-    setSubmitting(true);
-    try {
-      await fetch(`${import.meta.env.VITE_API_URL}/users`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          firstName: sanitizedFirstName,
-          lastName: sanitizedLastName,
-          email: sanitizedEmail,
-        }),
-      });
-      setFirstName('');
-      setLastName('');
-      setEmail('');
-      await syncUsers();
-      showSnackbar?.('Created', 'success');
-    } catch (e) {
-      showSnackbar?.('Create failed', 'error');
-    }
-    setSubmitting(false);
-  };
+  // create handler removed
 
   const startEdit = (email: string) => {
     const row = users.find((u) => u.email === email);
@@ -133,30 +98,6 @@ export default function MainPage({ showSnackbar }: Props) {
             <CircularProgress />
           </Box>
         ) : null}
-        <Box
-          component="form"
-          onSubmit={onFormSubmit}
-          sx={{ display: 'flex', gap: 1, mt: 2 }}
-        >
-          <TextField
-            label="First Name"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-          />
-          <TextField
-            label="Last Name"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-          />
-          <TextField
-            label="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <Button type="submit" variant="contained" disabled={submitting}>
-            {submitting ? 'Submitting...' : 'Submit'}
-          </Button>
-        </Box>
 
         <UsersTable
           users={users}
@@ -171,7 +112,7 @@ export default function MainPage({ showSnackbar }: Props) {
           cancelEdit={cancelEdit}
           saveEdit={saveEdit}
           savingEmail={savingEmail}
-          subject={null}
+          subject={subject}
         />
       </Box>
     </Layout>

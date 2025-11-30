@@ -19,11 +19,21 @@ export class BackendStack extends cdk.Stack {
     const frontendOrigin =
       process.env.FRONTEND_ORIGIN || 'https://shouldntve.com';
 
+    //   POST /auth/request-otp -> functions/postAuthRequestOtp.ts
+    //   POST /auth/verify-otp  -> functions/postAuthVerifyOtp.ts
+    //   POST /auth/logout      -> functions/postAuthLogout.ts
+    //   GET  /protected     -> functions/getProtected.ts
+    //   GET  /users         -> functions/getUsers.ts
+    //   POST /users         -> functions/postUsers.ts
+    //   PUT  /users         -> functions/putUsers.ts
+
     const users = api.root.addResource('users');
+    // Use configured frontend origin instead of wildcard so preflight returns a specific origin
     users.addCorsPreflight({
-      allowOrigins: cdk.aws_apigateway.Cors.ALL_ORIGINS,
+      allowOrigins: [frontendOrigin],
       allowMethods: cdk.aws_apigateway.Cors.ALL_METHODS,
       allowHeaders: cdk.aws_apigateway.Cors.DEFAULT_HEADERS,
+      allowCredentials: true,
     });
 
     const table = new cdk.aws_dynamodb.Table(this, 'UsersTable', {
@@ -63,11 +73,11 @@ export class BackendStack extends cdk.Stack {
       },
     });
 
-    const listUsers = new cdk.aws_lambda_nodejs.NodejsFunction(
+    const getUsers = new cdk.aws_lambda_nodejs.NodejsFunction(
       this,
       'ListUsers',
       {
-        entry: join(__dirname, 'functions', 'listUsers.ts'),
+        entry: join(__dirname, 'functions', 'getUsers.ts'),
         handler: 'handler',
         environment: {
           TABLE_NAME: table.tableName,
@@ -79,14 +89,14 @@ export class BackendStack extends cdk.Stack {
         runtime: cdk.aws_lambda.Runtime.NODEJS_18_X,
       }
     );
-    table.grantReadData(listUsers);
-    users.addMethod('GET', new cdk.aws_apigateway.LambdaIntegration(listUsers));
+    table.grantReadData(getUsers);
+    users.addMethod('GET', new cdk.aws_apigateway.LambdaIntegration(getUsers));
 
-    const protectedHandler = new cdk.aws_lambda_nodejs.NodejsFunction(
+    const getProtected = new cdk.aws_lambda_nodejs.NodejsFunction(
       this,
       'ProtectedHandler',
       {
-        entry: join(__dirname, 'functions', 'protectedHandler.ts'),
+        entry: join(__dirname, 'functions', 'getProtected.ts'),
         handler: 'handler',
         environment: {
           JWT_SECRET_ARN: jwtSecret.secretArn,
@@ -99,7 +109,7 @@ export class BackendStack extends cdk.Stack {
         runtime: cdk.aws_lambda.Runtime.NODEJS_18_X,
       }
     );
-    jwtSecret.grantRead(protectedHandler);
+    jwtSecret.grantRead(getProtected);
 
     const protectedRes = api.root.addResource('protected');
     protectedRes.addCorsPreflight({
@@ -110,16 +120,16 @@ export class BackendStack extends cdk.Stack {
     });
     protectedRes.addMethod(
       'GET',
-      new cdk.aws_apigateway.LambdaIntegration(protectedHandler, {
+      new cdk.aws_apigateway.LambdaIntegration(getProtected, {
         proxy: true,
       })
     );
 
-    const createUser = new cdk.aws_lambda_nodejs.NodejsFunction(
+    const postUsers = new cdk.aws_lambda_nodejs.NodejsFunction(
       this,
       'CreateUser',
       {
-        entry: join(__dirname, 'functions', 'createUser.ts'),
+        entry: join(__dirname, 'functions', 'postUsers.ts'),
         handler: 'handler',
         environment: {
           TABLE_NAME: table.tableName,
@@ -131,17 +141,17 @@ export class BackendStack extends cdk.Stack {
         runtime: cdk.aws_lambda.Runtime.NODEJS_18_X,
       }
     );
-    table.grantWriteData(createUser);
+    table.grantWriteData(postUsers);
     users.addMethod(
       'POST',
-      new cdk.aws_apigateway.LambdaIntegration(createUser)
+      new cdk.aws_apigateway.LambdaIntegration(postUsers)
     );
 
-    const updateUser = new cdk.aws_lambda_nodejs.NodejsFunction(
+    const putUsers = new cdk.aws_lambda_nodejs.NodejsFunction(
       this,
       'UpdateUser',
       {
-        entry: join(__dirname, 'functions', 'updateUser.ts'),
+        entry: join(__dirname, 'functions', 'putUsers.ts'),
         handler: 'handler',
         environment: {
           TABLE_NAME: table.tableName,
@@ -155,18 +165,18 @@ export class BackendStack extends cdk.Stack {
         runtime: cdk.aws_lambda.Runtime.NODEJS_18_X,
       }
     );
-    table.grantReadWriteData(updateUser);
-    jwtSecret.grantRead(updateUser);
+    table.grantReadWriteData(putUsers);
+    jwtSecret.grantRead(putUsers);
     users.addMethod(
       'PUT',
-      new cdk.aws_apigateway.LambdaIntegration(updateUser, { proxy: true })
+      new cdk.aws_apigateway.LambdaIntegration(putUsers, { proxy: true })
     );
 
-    const requestOtp = new cdk.aws_lambda_nodejs.NodejsFunction(
+    const postAuthRequestOtp = new cdk.aws_lambda_nodejs.NodejsFunction(
       this,
       'RequestOtp',
       {
-        entry: join(__dirname, 'functions', 'requestOtp.ts'),
+        entry: join(__dirname, 'functions', 'postAuthRequestOtp.ts'),
         handler: 'handler',
         environment: {
           TABLE_NAME_OTPS: otpTable.tableName,
@@ -181,26 +191,26 @@ export class BackendStack extends cdk.Stack {
         runtime: cdk.aws_lambda.Runtime.NODEJS_18_X,
       }
     );
-    otpTable.grantWriteData(requestOtp);
-    otpTable.grantReadData(requestOtp);
-    requestOtp.addToRolePolicy(
+    otpTable.grantWriteData(postAuthRequestOtp);
+    otpTable.grantReadData(postAuthRequestOtp);
+    postAuthRequestOtp.addToRolePolicy(
       new cdk.aws_iam.PolicyStatement({
         actions: ['sns:Publish'],
         resources: ['*'],
       })
     );
-    requestOtp.addToRolePolicy(
+    postAuthRequestOtp.addToRolePolicy(
       new cdk.aws_iam.PolicyStatement({
         actions: ['ses:SendEmail', 'ses:SendRawEmail'],
         resources: ['*'],
       })
     );
 
-    const verifyOtp = new cdk.aws_lambda_nodejs.NodejsFunction(
+    const postAuthVerifyOtp = new cdk.aws_lambda_nodejs.NodejsFunction(
       this,
       'VerifyOtp',
       {
-        entry: join(__dirname, 'functions', 'verifyOtp.ts'),
+        entry: join(__dirname, 'functions', 'postAuthVerifyOtp.ts'),
         handler: 'handler',
         environment: {
           TABLE_NAME_OTPS: otpTable.tableName,
@@ -218,11 +228,11 @@ export class BackendStack extends cdk.Stack {
         runtime: cdk.aws_lambda.Runtime.NODEJS_18_X,
       }
     );
-    otpTable.grantReadWriteData(verifyOtp);
-    table.grantReadWriteData(verifyOtp);
-    otpSecret.grantRead(requestOtp);
-    otpSecret.grantRead(verifyOtp);
-    jwtSecret.grantRead(verifyOtp);
+    otpTable.grantReadWriteData(postAuthVerifyOtp);
+    table.grantReadWriteData(postAuthVerifyOtp);
+    otpSecret.grantRead(postAuthRequestOtp);
+    otpSecret.grantRead(postAuthVerifyOtp);
+    jwtSecret.grantRead(postAuthVerifyOtp);
 
     const auth = api.root.addResource('auth');
     const requestOtpRes = auth.addResource('request-otp');
@@ -234,7 +244,9 @@ export class BackendStack extends cdk.Stack {
     });
     requestOtpRes.addMethod(
       'POST',
-      new cdk.aws_apigateway.LambdaIntegration(requestOtp, { proxy: true })
+      new cdk.aws_apigateway.LambdaIntegration(postAuthRequestOtp, {
+        proxy: true,
+      })
     );
     const verifyOtpRes = auth.addResource('verify-otp');
     verifyOtpRes.addCorsPreflight({
@@ -245,22 +257,28 @@ export class BackendStack extends cdk.Stack {
     });
     verifyOtpRes.addMethod(
       'POST',
-      new cdk.aws_apigateway.LambdaIntegration(verifyOtp, { proxy: true })
+      new cdk.aws_apigateway.LambdaIntegration(postAuthVerifyOtp, {
+        proxy: true,
+      })
     );
 
-    const logout = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'Logout', {
-      entry: join(__dirname, 'functions', 'logout.ts'),
-      handler: 'handler',
-      environment: {
-        FRONTEND_ORIGIN: frontendOrigin,
-      },
-      bundling: {
-        minify: true,
-      },
-      runtime: cdk.aws_lambda.Runtime.NODEJS_18_X,
-    });
+    const postAuthLogout = new cdk.aws_lambda_nodejs.NodejsFunction(
+      this,
+      'Logout',
+      {
+        entry: join(__dirname, 'functions', 'postAuthLogout.ts'),
+        handler: 'handler',
+        environment: {
+          FRONTEND_ORIGIN: frontendOrigin,
+        },
+        bundling: {
+          minify: true,
+        },
+        runtime: cdk.aws_lambda.Runtime.NODEJS_18_X,
+      }
+    );
 
-    const logoutRes = auth.addResource('logout');
+    const logoutRes = auth.addResource('postAuthLogout');
     logoutRes.addCorsPreflight({
       allowOrigins: [frontendOrigin],
       allowMethods: cdk.aws_apigateway.Cors.ALL_METHODS,
@@ -269,7 +287,7 @@ export class BackendStack extends cdk.Stack {
     });
     logoutRes.addMethod(
       'POST',
-      new cdk.aws_apigateway.LambdaIntegration(logout, { proxy: true })
+      new cdk.aws_apigateway.LambdaIntegration(postAuthLogout, { proxy: true })
     );
 
     new cdk.CfnOutput(this, 'QueueArn', {
