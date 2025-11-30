@@ -1,6 +1,6 @@
 import React from 'react';
 import useAuth from '../hooks/useAuth';
-import { useSnackbar } from './SnackbarProvider';
+import { useSnackbar } from './snackbarContext';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import Box from '@mui/material/Box';

@@ -4,6 +4,7 @@ import {
   DynamoDBClient,
   PutItemCommand,
   GetItemCommand,
+  UpdateItemCommand,
 } from '@aws-sdk/client-dynamodb';
 import {
   SecretsManagerClient,
@@ -151,14 +152,15 @@ export const handler = async (event: {
     const usersTable = process.env.USERS_TABLE;
     if (body.email && usersTable) {
       try {
+        const id = (body.email as string).trim().toLowerCase();
         await ddb.send(
-          new PutItemCommand({
+          new UpdateItemCommand({
             TableName: usersTable,
-            Item: {
-              PK: { S: 'USER' },
-              SK: { S: (body.email as string).trim().toLowerCase() },
-              email: { S: (body.email as string).trim().toLowerCase() },
-            },
+            Key: { PK: { S: 'USER' }, SK: { S: id } },
+            UpdateExpression: 'SET #e = if_not_exists(#e, :email)',
+            ExpressionAttributeNames: { '#e': 'email' },
+            ExpressionAttributeValues: { ':email': { S: id } },
+            ReturnValues: 'NONE',
           })
         );
       } catch (err) {

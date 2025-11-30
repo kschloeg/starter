@@ -6,7 +6,7 @@ import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 import Layout from './Layout';
 import useAuth from '../hooks/useAuth';
-import { useSnackbar } from './SnackbarProvider';
+import { useSnackbar } from './snackbarContext';
 
 type User = {
   firstName: string;
@@ -28,7 +28,7 @@ export default function MainPage() {
   const showSnackbar = useSnackbar();
 
   console.log('Rendering MainPage with users:', { users, loading, subject });
-  const syncUsers = async () => {
+  const syncUsers = React.useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/users`, {
@@ -40,11 +40,11 @@ export default function MainPage() {
       showSnackbar?.('Failed to load users', 'error');
     }
     setLoading(false);
-  };
+  }, [showSnackbar]);
 
   useEffect(() => {
     void syncUsers();
-  }, []);
+  }, [syncUsers]);
 
   // create handler removed
 
@@ -64,7 +64,7 @@ export default function MainPage() {
   const saveEdit = async (emailArg: string) => {
     try {
       setSavingEmail(emailArg);
-      const body: any = { email: emailArg };
+      const body: Partial<User> & { email: string } = { email: emailArg };
       if (editFirstName) body.firstName = editFirstName;
       if (editLastName) body.lastName = editLastName;
       if (editPhone) body.phone = editPhone;

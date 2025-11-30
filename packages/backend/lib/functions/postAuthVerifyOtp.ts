@@ -4,7 +4,6 @@ import {
   DeleteItemCommand,
   UpdateItemCommand,
 } from '@aws-sdk/client-dynamodb';
-import { PutItemCommand } from '@aws-sdk/client-dynamodb';
 import * as crypto from 'crypto';
 import * as jwt from 'jsonwebtoken';
 import { getRequestOrigin, corsHeadersFromOrigin } from '../utils/cors';
@@ -214,18 +213,19 @@ export const handler = async (event: {
       console.info('Upserting user record in USERS_TABLE', { identifier });
       try {
         // upsert minimal user record with PK=USER and SK=<identifier>
-        const userItem: any = {
-          PK: { S: 'USER' },
-          SK: { S: identifier },
+        const updateParams: any = {
+          TableName: usersTable,
+          Key: { PK: { S: 'USER' }, SK: { S: identifier } },
+          UpdateExpression: isEmail
+            ? 'SET #e = if_not_exists(#e, :val)'
+            : 'SET #p = if_not_exists(#p, :val)',
+          ExpressionAttributeNames: isEmail
+            ? { '#e': 'email' }
+            : { '#p': 'phone' },
+          ExpressionAttributeValues: { ':val': { S: identifier } },
+          ReturnValues: 'NONE',
         };
-        if (!isEmail) userItem.phone = { S: identifier };
-        else userItem.email = { S: identifier };
-        await ddb.send(
-          new PutItemCommand({
-            TableName: usersTable,
-            Item: userItem,
-          })
-        );
+        await ddb.send(new UpdateItemCommand(updateParams));
       } catch (err) {
         console.error('Failed to upsert user', err);
       }

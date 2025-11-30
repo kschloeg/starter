@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 
+type AuthUser = { email?: string; sub?: string } | null;
+
 export default function useAuth() {
-  const [user, setUser] = useState<Record<string, any> | null>(null);
+  const [user, setUser] = useState<AuthUser>(null);
   const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {

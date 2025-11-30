@@ -1,18 +1,7 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { useState } from 'react';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-
-type Severity = 'success' | 'error' | 'info' | 'warning';
-
-const SnackbarContext = createContext<
-  ((message: string, severity?: Severity) => void) | undefined
->(undefined);
-
-export function useSnackbar() {
-  const ctx = useContext(SnackbarContext);
-  if (!ctx) throw new Error('useSnackbar must be used within SnackbarProvider');
-  return ctx;
-}
+import { SnackbarContext, Severity } from './snackbarContext';
 
 export default function SnackbarProvider({
   children,
@@ -29,7 +18,7 @@ export default function SnackbarProvider({
     setOpen(true);
   };
 
-  const handleClose = (_?: any, reason?: string) => {
+  const handleClose = (_?: React.SyntheticEvent | Event, reason?: string) => {
     if (reason === 'clickaway') return;
     setOpen(false);
   };
