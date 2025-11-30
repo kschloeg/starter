@@ -1,8 +1,11 @@
 import { DynamoDBClient, QueryCommand } from '@aws-sdk/client-dynamodb';
+import { getRequestOrigin, corsHeadersFromOrigin } from '../utils/cors';
 
 const client = new DynamoDBClient({});
 
-export const handler = async (): Promise<{
+export const handler = async (event?: {
+  headers?: Record<string, string>;
+}): Promise<{
   statusCode: number;
   body: string;
   headers: Record<string, string>;
@@ -12,6 +15,8 @@ export const handler = async (): Promise<{
   if (!tableName) {
     throw new Error('Missing TABLE_NAME');
   }
+
+  const origin = getRequestOrigin(event?.headers);
 
   const { Items } = await client.send(
     new QueryCommand({
@@ -25,20 +30,16 @@ export const handler = async (): Promise<{
     })
   );
 
+  const results = (Items || []).map((item) => ({
+    email: item.SK?.S ?? '',
+    firstName: item.firstName?.S ?? '',
+    lastName: item.lastName?.S ?? '',
+    phone: item.phone?.S ?? '',
+  }));
+
   return {
     statusCode: 200,
-    body: JSON.stringify(
-      Items?.map((item) => ({
-        email: item.SK.S,
-        firstName: item.firstName.S,
-        lastName: item.lastName.S,
-        phone: (item.phone && item.phone.S) ?? 'WHATEVER',
-        kirk: 'Keely',
-      }))
-    ),
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    },
+    body: JSON.stringify(results),
+    headers: corsHeadersFromOrigin(origin, 'application/json'),
   };
 };
