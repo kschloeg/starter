@@ -37,6 +37,7 @@ export default function MainPage() {
       const body = await res.json();
       setUsers(body || []);
     } catch (e) {
+      console.error('syncUsers error', e);
       showSnackbar?.('Failed to load users', 'error');
     }
     setLoading(false);
@@ -84,6 +85,7 @@ export default function MainPage() {
       await syncUsers();
       showSnackbar?.('Updated', 'success');
     } catch (e) {
+      console.error('saveEdit error', e);
       setSavingEmail(null);
       showSnackbar?.('Network error', 'error');
     }

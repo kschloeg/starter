@@ -31,6 +31,7 @@ export default function LoginPage() {
       }
       showSnackbar?.('OTP requested — check your email', 'success');
     } catch (e) {
+      console.error('requestOtp error', e);
       setRequestingOtp(false);
       showSnackbar?.('Network error', 'error');
     }
@@ -51,6 +52,7 @@ export default function LoginPage() {
       setOtpCode('');
       navigate('/');
     } catch (e) {
+      console.error('verifyOtp error', e);
       setVerifyingOtp(false);
       showSnackbar?.('Network error', 'error');
     }
